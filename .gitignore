@@ -1,14 +1,40 @@
-# Игнорировать всё кроме backend
-/*
-!backend/
-!.gitignore
-!README.md
-!LICENSE
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+securewave_app.iml
+fonts/
+assets/
+.metadata
+analysis_options.yaml
 
-# В backend игнорировать:
-backend/vendor/
-backend/node_modules/
-backend/**/*.log
-backend/websocket/server.pid
-backend/.env
-backend/.DS_Store
+
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+
+
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Логи
+*.log
+
+# Временные файлы
+*.tmp
+*.temp
