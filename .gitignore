@@ -1,8 +1,6 @@
 # Игнорировать всё кроме backend
 /*
 !backend/
-!README.md
-!LICENSE
 
 # В backend игнорировать:
 backend/vendor/
