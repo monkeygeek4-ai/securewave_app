@@ -38,4 +38,4 @@ $auth = new Auth();
 $result = $auth->validateToken($token);
 
 // Возвращаем результат
-Response::json($result);
+Response::json($result); 
