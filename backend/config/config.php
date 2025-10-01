@@ -1,10 +1,15 @@
 <?php
 // backend/config/config.php
 
-// Загружаем переменные окружения если есть файл .env
-if (file_exists(dirname(__DIR__) . '/.env')) {
-    $envFile = dirname(__DIR__) . '/.env';
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+/**
+ * Загрузка переменных окружения из .env файла
+ */
+function loadEnv($path) {
+    if (!file_exists($path)) {
+        return;
+    }
+    
+    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     
     foreach ($lines as $line) {
         // Пропускаем комментарии
@@ -12,7 +17,7 @@ if (file_exists(dirname(__DIR__) . '/.env')) {
             continue;
         }
         
-        // Разбираем строку
+        // Разбираем строку KEY=VALUE
         if (strpos($line, '=') !== false) {
             list($key, $value) = explode('=', $line, 2);
             $key = trim($key);
@@ -24,52 +29,69 @@ if (file_exists(dirname(__DIR__) . '/.env')) {
                 $value = substr($value, 1, -1);
             }
             
+            // Устанавливаем в $_ENV и putenv для совместимости
             $_ENV[$key] = $value;
+            putenv("$key=$value");
         }
     }
 }
 
+// Загружаем .env из родительской директории
+loadEnv(dirname(__DIR__) . '/.env');
+
+/**
+ * Вспомогательная функция для получения значений из ENV
+ */
+function env($key, $default = null) {
+    $value = $_ENV[$key] ?? getenv($key);
+    
+    if ($value === false) {
+        return $default;
+    }
+    
+    // Преобразуем строковые значения true/false в boolean
+    if (strtolower($value) === 'true') {
+        return true;
+    }
+    if (strtolower($value) === 'false') {
+        return false;
+    }
+    
+    return $value;
+}
+
 return [
-    // Конфигурация базы данных
     'database' => [
-        'host' => $_ENV['DB_HOST'] ?? 'localhost',
-        'port' => $_ENV['DB_PORT'] ?? 5432,
-        'database' => $_ENV['DB_NAME'] ?? 'securewave_base',
-        'username' => $_ENV['DB_USER'] ?? 'securewave_usr',
-        'password' => $_ENV['DB_PASSWORD'] ?? 'Rjhjkm432!'
+        'host' => env('DB_HOST'),
+        'port' => env('DB_PORT'),
+        'database' => env('DB_NAME'),
+        'username' => env('DB_USER'),
+        'password' => env('DB_PASSWORD')
     ],
     
-    // Конфигурация JWT
     'jwt' => [
-        'secret' => $_ENV['JWT_SECRET'] ?? 'your-secret-key-change-this-in-production',
-        'algorithm' => 'HS256',
-        'expire_days' => 7
+        'secret' => env('JWT_SECRET'),  // БЕЗ дефолта - ОБЯЗАТЕЛЬНО должен быть в .env!
+        'algorithm' => env('JWT_ALGORITHM', 'HS256'),
+        'expire_days' => (int)env('JWT_EXPIRE_DAYS', 7)
     ],
     
-    // Конфигурация WebSocket
     'websocket' => [
-        'host' => $_ENV['WS_HOST'] ?? '0.0.0.0',
-        'port' => $_ENV['WS_PORT'] ?? 8085,
-        'auth_timeout' => 10, // секунды
+        'host' => env('WS_HOST', '0.0.0.0'),
+        'port' => (int)env('WS_PORT', 8085),
+        'auth_timeout' => (int)env('WS_AUTH_TIMEOUT', 10)
     ],
     
-    // Конфигурация приложения
     'app' => [
-        'name' => 'SecureWave',
-        'debug' => $_ENV['APP_DEBUG'] ?? true,
-        'timezone' => 'Europe/Moscow',
-        'locale' => 'ru_RU'
+        'name' => env('APP_NAME', 'SecureWave'),
+        'debug' => env('APP_DEBUG', false),
+        'timezone' => env('APP_TIMEZONE', 'Europe/Moscow'),
+        'locale' => env('APP_LOCALE', 'ru_RU')
     ],
     
-    // CORS настройки
     'cors' => [
-        'allowed_origins' => [
-            'http://localhost:8080',
-            'http://localhost:3000',
-            'https://securewave.sbk-19.ru'
-        ],
-        'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        'allowed_headers' => ['Content-Type', 'Authorization', 'X-Requested-With'],
-        'max_age' => 3600
+        'allowed_origins' => array_filter(explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:8080,http://localhost:3000,https://securewave.sbk-19.ru'))),
+        'allowed_methods' => array_filter(explode(',', env('CORS_ALLOWED_METHODS', 'GET,POST,PUT,DELETE,OPTIONS'))),
+        'allowed_headers' => array_filter(explode(',', env('CORS_ALLOWED_HEADERS', 'Content-Type,Authorization,X-Requested-With'))),
+        'max_age' => (int)env('CORS_MAX_AGE', 3600)
     ]
 ];
