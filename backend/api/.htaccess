@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # backend/api/.htaccess
 
 RewriteEngine On
@@ -34,3 +35,11 @@ RewriteRule ^calls/([0-9a-zA-Z_-]+)/signal$ calls/signal.php?call_id=$1 [L]
 
 # Если ничего не совпало, возвращаем 404
 RewriteRule ^(.*)$ - [R=404,L]
+=======
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php?route=$1 [QSA,L]
+</IfModule>
+>>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6

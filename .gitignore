@@ -1,0 +1,16 @@
+# Игнорировать всё кроме backend
+/*
+!backend/
+!README.md
+!LICENSE
+
+# В backend игнорировать:
+backend/vendor/
+backend/node_modules/
+backend/**/*.log
+backend/websocket/server.pid
+backend/.env
+backend/.DS_Store
+
+# НО НЕ игнорировать .env.example
+!backend/.env.example
