@@ -7,7 +7,6 @@ class Database {
     private $config = [];
     
     private function __construct() {
-<<<<<<< HEAD
         // Загружаем конфигурацию напрямую из .env
         $this->loadEnvDirect();
         $this->connect();
@@ -15,26 +14,6 @@ class Database {
     
     private function loadEnvDirect() {
         // Загружаем напрямую из .env файла
-=======
-        // Загружаем конфигурацию из .env файла
-        $this->loadConfig();
-        $this->connect();
-    }
-    
-    private function loadConfig() {
-        // Сначала пробуем загрузить из config.php если есть
-        $configFile = dirname(__DIR__) . '/config/config.php';
-        if (file_exists($configFile)) {
-            $fullConfig = require $configFile;
-            $this->config = $fullConfig['database'];
-            
-            // Проверяем обязательные параметры
-            $this->validateConfig();
-            return;
-        }
-        
-        // Если нет config.php, загружаем напрямую из .env
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
         $envFile = dirname(__DIR__) . '/.env';
         if (!file_exists($envFile)) {
             throw new Exception(
@@ -44,7 +23,7 @@ class Database {
                 "DB_HOST=localhost\n" .
                 "DB_PORT=5432\n" .
                 "DB_NAME=your_database\n" .
-                "DB_USER=your_username\n" .
+                "DB_USER=your_username\n" . 
                 "DB_PASSWORD=your_password"
             );
         }
@@ -96,11 +75,7 @@ class Database {
         
         foreach ($required as $param) {
             if (empty($this->config[$param])) {
-<<<<<<< HEAD
                 $missing[] = 'DB_' . strtoupper($param);
-=======
-                $missing[] = strtoupper($param);
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
             }
         }
         
@@ -108,14 +83,7 @@ class Database {
             throw new Exception(
                 "Database configuration error: Missing required parameters: " . 
                 implode(', ', $missing) . "\n" .
-<<<<<<< HEAD
                 "Please check your .env file."
-=======
-                "Please check your .env file and ensure these variables are set:\n" .
-                implode("\n", array_map(function($p) { 
-                    return "DB_" . $p . "=your_value"; 
-                }, $missing))
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
             );
         }
     }
@@ -154,12 +122,6 @@ class Database {
             
         } catch (PDOException $e) {
             error_log("Database connection failed: " . $e->getMessage());
-<<<<<<< HEAD
-=======
-            error_log("DSN: " . $dsn);
-            error_log("Username: " . $this->config['username']);
-            // НЕ логируем пароль в целях безопасности!
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
             throw new Exception(
                 "Database connection failed. Please check your database credentials in .env file.\n" .
                 "Error: " . $e->getMessage()
@@ -210,21 +172,6 @@ class Database {
         // Обычный INSERT
         $this->execute($sql, $params);
         
-<<<<<<< HEAD
-=======
-        // Для PostgreSQL нужно указывать последовательность
-        // Попробуем получить последний ID
-        try {
-            // Пытаемся получить последний ID из последовательности messages
-            $lastId = $this->conn->lastInsertId('messages_id_seq');
-            if ($lastId) {
-                return $lastId;
-            }
-        } catch (Exception $e) {
-            // Если не получилось, пробуем другой способ
-        }
-        
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
         // Альтернативный способ для PostgreSQL
         try {
             $result = $this->fetchOne("SELECT lastval()");
@@ -234,73 +181,16 @@ class Database {
         }
     }
     
-<<<<<<< HEAD
     public function lastInsertId($sequence = null) {
         if ($sequence) {
             return $this->conn->lastInsertId($sequence);
         }
         
-=======
-    // Метод для получения ID последней вставленной записи
-    public function lastInsertId($sequence = null) {
-        if ($sequence) {
-            // Для PostgreSQL с указанием последовательности
-            return $this->conn->lastInsertId($sequence);
-        }
-        
-        // Попробуем получить через lastval()
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
         try {
             $result = $this->fetchOne("SELECT lastval()");
             return $result ? $result['lastval'] : null;
         } catch (Exception $e) {
-<<<<<<< HEAD
             return null;
         }
     }
-=======
-            return $this->conn->lastInsertId();
-        }
-    }
-    
-    public function beginTransaction() {
-        return $this->conn->beginTransaction();
-    }
-    
-    public function commit() {
-        return $this->conn->commit();
-    }
-    
-    public function rollback() {
-        return $this->conn->rollBack();
-    }
-    
-    public function inTransaction() {
-        return $this->conn->inTransaction();
-    }
-    
-    // Вспомогательный метод для отладки
-    public function getLastError() {
-        return $this->conn->errorInfo();
-    }
-    
-    // Метод для проверки соединения
-    public function isConnected() {
-        try {
-            if (!$this->conn) {
-                return false;
-            }
-            $this->conn->query('SELECT 1');
-            return true;
-        } catch (PDOException $e) {
-            return false;
-        }
-    }
-    
-    // Метод для переподключения
-    public function reconnect() {
-        $this->conn = null;
-        $this->connect();
-    }
->>>>>>> 6c0a886a6502e429bdd6288c5188b4477e0387e6
 }
