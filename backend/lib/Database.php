@@ -18,52 +18,87 @@ class Database {
         if (file_exists($configFile)) {
             $fullConfig = require $configFile;
             $this->config = $fullConfig['database'];
+            
+            // Проверяем обязательные параметры
+            $this->validateConfig();
             return;
         }
         
         // Если нет config.php, загружаем напрямую из .env
         $envFile = dirname(__DIR__) . '/.env';
-        if (file_exists($envFile)) {
-            $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            
-            foreach ($lines as $line) {
-                // Пропускаем комментарии
-                if (strpos(trim($line), '#') === 0) {
-                    continue;
-                }
-                
-                // Разбираем строку
-                if (strpos($line, '=') !== false) {
-                    list($key, $value) = explode('=', $line, 2);
-                    $key = trim($key);
-                    $value = trim($value);
-                    
-                    // Убираем кавычки если есть
-                    if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
-                        (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
-                        $value = substr($value, 1, -1);
-                    }
-                    
-                    $_ENV[$key] = $value;
-                }
+        if (!file_exists($envFile)) {
+            throw new Exception(
+                "Configuration error: .env file not found at " . $envFile . "\n" .
+                "Please create .env file with database credentials.\n" .
+                "Example:\n" .
+                "DB_HOST=localhost\n" .
+                "DB_PORT=5432\n" .
+                "DB_NAME=your_database\n" .
+                "DB_USER=your_username\n" .
+                "DB_PASSWORD=your_password"
+            );
+        }
+        
+        // Читаем .env файл
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        
+        foreach ($lines as $line) {
+            // Пропускаем комментарии
+            if (strpos(trim($line), '#') === 0) {
+                continue;
             }
             
-            $this->config = [
-                'host' => $_ENV['DB_HOST'] ?? 'localhost',
-                'port' => $_ENV['DB_PORT'] ?? 5432,
-                'database' => $_ENV['DB_NAME'] ?? 'securewave_base',
-                'username' => $_ENV['DB_USER'] ?? 'securewave_usr',
-                'password' => $_ENV['DB_PASSWORD'] ?? 'Rjhjkm432!'
-            ];
-        } else {
-            // Fallback на дефолтные настройки
-            $this->config = [
-                'host' => 'localhost',
-                'port' => 5432,
-                'database' => 'securewave_base',
-                'username' => 'securewave_usr',
-                'password' => 'Rjhjkm432!'
-            ];
+            // Разбираем строку
+            if (strpos($line, '=') !== false) {
+                list($key, $value) = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+                
+                // Убираем кавычки если есть
+                if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                    (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                    $value = substr($value, 1, -1);
+                }
+                
+                $_ENV[$key] = $value;
+            }
+        }
+        
+        // Формируем конфигурацию из переменных окружения
+        $this->config = [
+            'host' => $_ENV['DB_HOST'] ?? null,
+            'port' => $_ENV['DB_PORT'] ?? 5432,
+            'database' => $_ENV['DB_NAME'] ?? null,
+            'username' => $_ENV['DB_USER'] ?? null,
+            'password' => $_ENV['DB_PASSWORD'] ?? null
+        ];
+        
+        // Проверяем обязательные параметры
+        $this->validateConfig();
+    }
+    
+    /**
+     * Проверка наличия всех обязательных параметров конфигурации
+     */
+    private function validateConfig() {
+        $required = ['host', 'database', 'username', 'password'];
+        $missing = [];
+        
+        foreach ($required as $param) {
+            if (empty($this->config[$param])) {
+                $missing[] = strtoupper($param);
+            }
+        }
+        
+        if (!empty($missing)) {
+            throw new Exception(
+                "Database configuration error: Missing required parameters: " . 
+                implode(', ', $missing) . "\n" .
+                "Please check your .env file and ensure these variables are set:\n" .
+                implode("\n", array_map(function($p) { 
+                    return "DB_" . $p . "=your_value"; 
+                }, $missing))
+            );
         }
     }
     
@@ -102,7 +137,12 @@ class Database {
         } catch (PDOException $e) {
             error_log("Database connection failed: " . $e->getMessage());
             error_log("DSN: " . $dsn);
-            throw new Exception("Database connection failed: " . $e->getMessage());
+            error_log("Username: " . $this->config['username']);
+            // НЕ логируем пароль в целях безопасности!
+            throw new Exception(
+                "Database connection failed. Please check your database credentials in .env file.\n" .
+                "Error: " . $e->getMessage()
+            );
         }
     }
     
