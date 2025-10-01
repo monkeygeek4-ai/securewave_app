@@ -1,0 +1,350 @@
+Запуск WebSocket сервера на порту 8085...
+WebSocket сервер запущен
+WebSocket сервер запущен на порту 8085
+Нажмите Ctrl+C для остановки
+
+
+Deprecated: Creation of dynamic property React\Socket\Connection::$decor is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 83
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$resourceId is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 84
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$remoteAddress is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 87
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpHeadersReceived is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpServer.php on line 33
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpBuffer is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpRequestParser.php on line 30
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpRequest is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 112
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$WebSocket is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 114
+=====================================
+Новое подключение: 60
+Всего подключений: 1
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$userData is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/AbstractConnectionDecorator.php on line 27
+userData инициализирована для соединения 60
+Ожидаем авторизацию от клиента...
+=====================================
+Сообщение от 60: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+userData установлена для соединения 60: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Сообщение от 60: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+Пользователь админ уже подключен с соединения 60, закрываем старое
+userData установлена для соединения 60: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Пользователь отключился: админ (ID: 1)
+Соединение 60 закрыто
+
+Deprecated: Creation of dynamic property React\Socket\Connection::$decor is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 83
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$resourceId is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 84
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$remoteAddress is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 87
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpHeadersReceived is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpServer.php on line 33
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpBuffer is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpRequestParser.php on line 30
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpRequest is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 112
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$WebSocket is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 114
+=====================================
+Новое подключение: 92
+Всего подключений: 1
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$userData is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/AbstractConnectionDecorator.php on line 27
+userData инициализирована для соединения 92
+Ожидаем авторизацию от клиента...
+=====================================
+Сообщение от 92: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":"1"}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+userData установлена для соединения 92: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Сообщение от 92: {"type":"join_chat","chatId":"chat_1758339808575"}
+Тип сообщения: join_chat
+Пользователь админ присоединился к чату chat_1758339808575
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:08.430861
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:08.433749
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"leave_chat","chatId":"chat_1758339808575"}
+Тип сообщения: leave_chat
+Пользователь админ покинул чат
+Сообщение от 92: {"type":"join_chat","chatId":"chat_1759070333691"}
+Тип сообщения: join_chat
+Пользователь админ присоединился к чату chat_1759070333691
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1759070333691","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1759070333691
+ID чата в БД: 2
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:18.66295
+Найдено сообщений для отметки как прочитанных: 0
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1759070333691","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1759070333691
+ID чата в БД: 2
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:18.664982
+Найдено сообщений для отметки как прочитанных: 0
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"leave_chat","chatId":"chat_1759070333691"}
+Тип сообщения: leave_chat
+Пользователь админ покинул чат
+Сообщение от 92: {"type":"join_chat","chatId":"chat_1758339808575"}
+Тип сообщения: join_chat
+Пользователь админ присоединился к чату chat_1758339808575
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:22.209651
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:22.211609
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:28.347672
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:20:28.349266
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:20:36.181"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:21:06.387"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:21:36.387"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:22:06.387"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:22:36.387"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"ping","timestamp":"2025-09-29T20:23:06.386"}
+Тип сообщения: ping
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:23:10.627339
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 92: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:23:10.629544
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Пользователь отключился: админ (ID: 1)
+Соединение 92 закрыто
+
+Deprecated: Creation of dynamic property React\Socket\Connection::$decor is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 83
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$resourceId is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 84
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$remoteAddress is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 87
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpHeadersReceived is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpServer.php on line 33
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpBuffer is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpRequestParser.php on line 30
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpRequest is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 112
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$WebSocket is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 114
+=====================================
+Новое подключение: 95
+Всего подключений: 1
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$userData is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/AbstractConnectionDecorator.php on line 27
+userData инициализирована для соединения 95
+Ожидаем авторизацию от клиента...
+=====================================
+Сообщение от 95: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+userData установлена для соединения 95: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Сообщение от 95: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+Пользователь админ уже подключен с соединения 95, закрываем старое
+userData установлена для соединения 95: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Пользователь отключился: админ (ID: 1)
+Соединение 95 закрыто
+
+Deprecated: Creation of dynamic property React\Socket\Connection::$decor is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 83
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$resourceId is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 84
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$remoteAddress is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 87
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpHeadersReceived is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpServer.php on line 33
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpBuffer is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpRequestParser.php on line 30
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpRequest is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 112
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$WebSocket is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 114
+=====================================
+Новое подключение: 98
+Всего подключений: 1
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$userData is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/AbstractConnectionDecorator.php on line 27
+userData инициализирована для соединения 98
+Ожидаем авторизацию от клиента...
+=====================================
+Сообщение от 98: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5NjUyMDk1LCJpYXQiOjE3NTkwNDcyOTUsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTkwNDcyOTUzMzYiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.d-4eopQTAKGwaFQdTQ16q7U4lbh4xf9C8shQxPJh1oU","userId":"1"}
+Тип сообщения: auth
+Получен токен для авторизации
+User found: админ (ID: 1)
+userData установлена для соединения 98: userId=1, username=админ
+Всего активных подключений: 1
+Пользователь авторизован: админ (ID: 1)
+Сообщение от 98: {"type":"join_chat","chatId":"chat_1758339808575"}
+Тип сообщения: join_chat
+Пользователь админ присоединился к чату chat_1758339808575
+Сообщение от 98: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:23:21.559992
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 98: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:23:21.561887
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+
+Deprecated: Creation of dynamic property React\Socket\Connection::$decor is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 83
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$resourceId is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 84
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$remoteAddress is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Server/IoServer.php on line 87
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpHeadersReceived is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpServer.php on line 33
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpBuffer is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/Http/HttpRequestParser.php on line 30
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$httpRequest is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 112
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$WebSocket is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/WebSocket/WsServer.php on line 114
+=====================================
+Новое подключение: 101
+Всего подключений: 2
+
+Deprecated: Creation of dynamic property Ratchet\Server\IoConnection::$userData is deprecated in /var/www/sbk_19_ru_usr/data/www/securewave.sbk-19.ru/backend/vendor/cboden/ratchet/src/Ratchet/AbstractConnectionDecorator.php on line 27
+userData инициализирована для соединения 101
+Ожидаем авторизацию от клиента...
+=====================================
+Сообщение от 101: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5MTEzNjY0LCJpYXQiOjE3NTg1MDg4NjQsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTg1MDg4NjQwOTMiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.m4eNoeK6Wu5C-9ZO5C0i8eYK7-Bra8BspAFholVYpjM","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+JWT: Token expired at 2025-09-29 02:41:04
+Invalid token: eyJhbGciOiJIUzI1NiIs...
+Пользователь не найден для токена
+Сообщение от 101: {"type":"auth","token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsic2VjdXJld2F2ZS5zYmstMTkucnUiXSwiZXhwIjoxNzU5MTEzNjY0LCJpYXQiOjE3NTg1MDg4NjQsImlzcyI6IlNlY3VyZVdhdmUiLCJqdGkiOiIxXzE3NTg1MDg4NjQwOTMiLCJzdWIiOiIxIiwidHlwZSI6ImFjY2VzcyIsInVzZXJuYW1lIjoiXHUwNDMwXHUwNDM0XHUwNDNjXHUwNDM4XHUwNDNkIiwidXNlcklkIjoxfQ.m4eNoeK6Wu5C-9ZO5C0i8eYK7-Bra8BspAFholVYpjM","userId":null}
+Тип сообщения: auth
+Получен токен для авторизации
+JWT: Token expired at 2025-09-29 02:41:04
+Invalid token: eyJhbGciOiJIUzI1NiIs...
+Пользователь не найден для токена
+Соединение 101 закрыто
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:23:50.448"}
+Тип сообщения: ping
+Сообщение от 98: {"type":"mark_read","chatId":"chat_1758339808575","messageId":null}
+Тип сообщения: mark_read
+=== MARK READ ===
+Пользователь админ (ID: 1) отмечает прочитанным чат chat_1758339808575
+ID чата в БД: 1
+Обновлено строк в chat_participants: успешно
+Новое last_read_at: 2025-09-29 20:24:08.206415
+Найдено сообщений для отметки как прочитанных: 64
+=== END MARK READ ===
+
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:24:20.448"}
+Тип сообщения: ping
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:24:50.446"}
+Тип сообщения: ping
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:25:20.447"}
+Тип сообщения: ping
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:25:50.447"}
+Тип сообщения: ping
+Сообщение от 98: {"type":"ping","timestamp":"2025-09-29T20:26:20.446"}
+Тип сообщения: ping
