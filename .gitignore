@@ -1,0 +1,14 @@
+# Зависимости
+backend/vendor/
+#frontend/node_modules/
+
+# Конфигурационные файлы с паролями
+#backend/config/database.php
+#.env
+
+# Логи
+*.log
+
+# Временные файлы
+*.tmp
+*.swp
