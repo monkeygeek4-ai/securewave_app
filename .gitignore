@@ -1,14 +1,14 @@
-# Зависимости
+# Игнорировать всё кроме backend
+/*
+!backend/
+!.gitignore
+!README.md
+!LICENSE
+
+# В backend игнорировать:
 backend/vendor/
-#frontend/node_modules/
-
-# Конфигурационные файлы с паролями
-#backend/config/database.php
-#.env
-
-# Логи
-*.log
-
-# Временные файлы
-*.tmp
-*.swp
+backend/node_modules/
+backend/**/*.log
+backend/websocket/server.pid
+backend/.env
+backend/.DS_Store
