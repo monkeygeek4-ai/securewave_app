@@ -174,6 +174,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ИСПРАВЛЕННЫЙ МЕТОД checkAuthStatus
   Future<void> checkAuthStatus() async {
     try {
       print('[Auth] Проверка статуса авторизации...');
@@ -190,54 +191,51 @@ class AuthProvider extends ChangeNotifier {
         return;
       }
 
-      print('[Auth] Токен найден, пробуем получить пользователя...');
+      print('[Auth] Токен найден, валидируем на сервере...');
 
-      // Пробуем получить текущего пользователя
+      // ВАЖНО: Проверяем токен на сервере
       try {
-        _currentUser = await _api.getCurrentUser();
-        _isAuthenticated = true;
-        print('[Auth] Пользователь получен: ${_currentUser?.username}');
-      } catch (e) {
-        print('[Auth] Не удалось получить пользователя, но токен есть: $e');
-        // Даже если не удалось получить пользователя, считаем что авторизованы если есть токен
-        _isAuthenticated = true;
-        _currentUser = User(
-          id: 'user_temp',
-          username: 'User',
-          email: 'user@example.com',
-        );
-      }
+        final response = await _api.validateToken();
 
-      // Подключаем WebSocket если есть токен
-      String? currentToken = _api.currentToken;
-      if (currentToken != null && currentToken.isNotEmpty) {
-        print('[Auth] Восстанавливаем WebSocket подключение');
+        if (response['valid'] == true && response['user'] != null) {
+          _currentUser = User.fromJson(response['user']);
+          _isAuthenticated = true;
+          print(
+              '[Auth] Токен валиден, пользователь: ${_currentUser?.username}');
 
-        try {
-          await _wsManager.connect(token: currentToken);
-          print('[Auth] WebSocket восстановлен');
-        } catch (e) {
-          print('[Auth] Не удалось восстановить WebSocket: $e');
+          // Подключаем WebSocket после успешной валидации
+          String? token = _api.currentToken;
+          if (token != null && token.isNotEmpty) {
+            print('[Auth] Подключаем WebSocket после валидации токена');
+            await Future.delayed(Duration(milliseconds: 300));
+
+            try {
+              await _wsManager.connect(token: token);
+            } catch (e) {
+              print('[Auth] Ошибка подключения WebSocket: $e');
+            }
+          }
+        } else {
+          // Токен невалиден - очищаем
+          print('[Auth] Токен невалиден, очищаем');
+          await _api.clearToken();
+          _isAuthenticated = false;
+          _currentUser = null;
         }
+      } catch (e) {
+        // Ошибка валидации - очищаем токен
+        print('[Auth] Ошибка валидации токена: $e');
+        await _api.clearToken();
+        _isAuthenticated = false;
+        _currentUser = null;
       }
 
       notifyListeners();
     } catch (e) {
-      print('[Auth] Не удалось проверить статус авторизации: $e');
+      print('[Auth] Ошибка проверки статуса авторизации: $e');
       _isAuthenticated = false;
       _currentUser = null;
-
-      // Отключаем WebSocket если не авторизованы
-      try {
-        _wsManager.disconnect();
-      } catch (_) {}
-
       notifyListeners();
     }
-  }
-
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
   }
 }

@@ -1,64 +1,44 @@
+// lib/services/api_service.dart
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
-import '../models/message.dart';
 import '../models/chat.dart';
+import '../models/message.dart';
 
 class ApiService {
-  static ApiService? _instance;
+  static final ApiService instance = ApiService._internal();
 
-  // Простой логгер для debug режима
-  static void _log(String message) {
-    if (kDebugMode) {
-      debugPrint('[API] $message');
-    }
-  }
-
-  static ApiService get instance {
-    _instance ??= ApiService._internal();
-    return _instance!;
-  }
-
-  late final Dio _dio;
+  late Dio _dio;
   String? _authToken;
   bool _isInitialized = false;
 
-  // Правильные URL для production
+  static const bool kIsWeb = bool.fromEnvironment('dart.library.js_util');
+
   static String get baseUrl {
     if (kIsWeb) {
-      return '/backend/api'; // Изменено с '/api' на '/backend/api'
-    } else {
       return 'https://securewave.sbk-19.ru/backend/api';
     }
+    return 'http://10.0.2.2:8080/backend/api';
   }
 
-  // WebSocket URL
   static String get wsUrl {
     if (kIsWeb) {
-      // Для веб версии определяем протокол динамически
-      final protocol = Uri.base.scheme == 'https' ? 'wss' : 'ws';
-      final host = Uri.base.host;
+      return 'wss://securewave.sbk-19.ru:8085';
+    }
+    return 'ws://10.0.2.2:8085';
+  }
 
-      // Для production
-      if (host == 'securewave.sbk-19.ru') {
-        return 'wss://securewave.sbk-19.ru/ws';
-      }
-
-      // Для локальной разработки
-      if (host == 'localhost' || host == '127.0.0.1') {
-        return 'ws://localhost:8085/ws';
-      }
-
-      return '$protocol://$host/ws';
-    } else {
-      // Для мобильных приложений
-      return 'wss://securewave.sbk-19.ru/ws';
+  void _log(String message) {
+    if (kDebugMode) {
+      print('[API] $message');
     }
   }
 
   ApiService._internal() {
-    _log('Инициализация. Web: $kIsWeb, BaseURL: $baseUrl, WS: $wsUrl');
+    _log(
+        'Инициализация ApiService. Web: $kIsWeb, BaseURL: $baseUrl, WS: $wsUrl');
     _initializeDio();
   }
 
@@ -123,7 +103,6 @@ class ApiService {
     await _loadToken();
   }
 
-  // ИСПРАВЛЕННЫЙ МЕТОД ЗАГРУЗКИ ТОКЕНА
   Future<void> _loadToken() async {
     if (_isInitialized) return;
 
@@ -132,7 +111,6 @@ class ApiService {
       final tokenValue = prefs.getString('auth_token');
 
       if (tokenValue != null && tokenValue.isNotEmpty) {
-        // Убираем кавычки если они есть (исправление для web)
         if (tokenValue.startsWith('"') && tokenValue.endsWith('"')) {
           _authToken = tokenValue.substring(1, tokenValue.length - 1);
           _log('Токен загружен и очищен от кавычек');
@@ -151,12 +129,10 @@ class ApiService {
     }
   }
 
-  // ИСПРАВЛЕННЫЙ МЕТОД СОХРАНЕНИЯ ТОКЕНА
   Future<void> _saveToken(String token) async {
     try {
       _log('Сохранение токена...');
 
-      // Убираем кавычки если они есть
       if (token.startsWith('"') && token.endsWith('"')) {
         token = token.substring(1, token.length - 1);
         _log('Убраны кавычки из токена');
@@ -165,7 +141,6 @@ class ApiService {
       _authToken = token;
 
       final prefs = await SharedPreferences.getInstance();
-      // Сохраняем без дополнительных кавычек
       await prefs.setString('auth_token', token);
 
       _log('Токен сохранен');
@@ -174,7 +149,6 @@ class ApiService {
     }
   }
 
-  // ПУБЛИЧНЫЙ МЕТОД ОЧИСТКИ ТОКЕНА (ИСПРАВЛЕНО)
   Future<void> clearToken() async {
     try {
       _log('Очистка токена');
@@ -226,7 +200,6 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = response.data;
 
-        // Ищем токен в разных возможных местах
         String? token = data['token'] ??
             data['access_token'] ??
             data['accessToken'] ??
@@ -254,14 +227,14 @@ class ApiService {
       throw 'Ошибка подключения. Попробуйте еще раз.';
     } catch (e) {
       _log('Ошибка входа: $e');
-      throw e.toString();
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> register({
     required String username,
-    required String email,
     required String password,
+    required String email,
     required String fullName,
   }) async {
     try {
@@ -271,10 +244,12 @@ class ApiService {
 
       final response = await _dio.post('/auth/register', data: {
         'username': username,
-        'email': email,
         'password': password,
+        'email': email,
         'fullName': fullName,
       });
+
+      _log('Ответ регистрации: ${response.statusCode}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data;
@@ -286,61 +261,67 @@ class ApiService {
 
         if (token != null) {
           await _saveToken(token);
-          _log('Токен получен после регистрации');
+          _log('Токен получен и сохранен');
         }
 
         return data;
       } else {
-        throw response.data['error'] ?? 'Ошибка регистрации';
+        throw 'Ошибка регистрации: ${response.statusCode}';
       }
+    } on DioException catch (e) {
+      _log('DioException при регистрации: $e');
+      if (e.response?.data != null) {
+        throw e.response!.data['error'] ?? 'Ошибка регистрации';
+      }
+      throw 'Ошибка подключения. Попробуйте еще раз.';
     } catch (e) {
       _log('Ошибка регистрации: $e');
-      throw e.toString();
+      rethrow;
     }
   }
 
-  Future<void> logout() async {
+  Future<Map<String, dynamic>> validateToken() async {
     try {
-      _log('Выход...');
+      _log('Валидация токена на сервере...');
 
-      if (hasToken) {
-        try {
-          await _dio.post('/auth/logout');
-        } catch (e) {
-          _log('Ошибка отправки запроса logout: $e');
-        }
+      final response = await _dio.post('/auth/validate');
+
+      _log('Ответ валидации: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        return response.data;
+      } else {
+        return {'valid': false, 'error': 'Invalid token'};
       }
-    } finally {
-      await clearToken();
-      _log('Выход завершен');
+    } on DioException catch (e) {
+      _log('Ошибка валидации токена: $e');
+      return {'valid': false, 'error': e.message};
     }
   }
 
   Future<User> getCurrentUser() async {
-    final hasValidToken = await waitForToken();
-
-    if (!hasValidToken) {
-      _log('Нет токена для получения пользователя');
-      throw 'Не авторизован';
-    }
-
     try {
+      _log('Получение текущего пользователя...');
+
       final response = await _dio.get('/auth/me');
 
       if (response.statusCode == 200) {
         return User.fromJson(response.data);
       } else {
-        _log('Ошибка получения пользователя: ${response.statusCode}');
-        throw 'Не удалось получить данные пользователя';
+        throw 'Не удалось получить пользователя';
       }
+    } on DioException catch (e) {
+      _log('Ошибка получения пользователя: $e');
+      throw 'Ошибка получения данных пользователя';
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      _log('Выполнение logout на сервере...');
+      await _dio.post('/auth/logout');
     } catch (e) {
-      _log('Ошибка получения текущего пользователя: $e');
-      // Возвращаем временного пользователя для тестирования
-      return User(
-        id: 'temp_user',
-        username: 'User',
-        email: 'user@example.com',
-      );
+      _log('Ошибка при logout на сервере: $e');
     }
   }
 
@@ -359,6 +340,26 @@ class ApiService {
       return response.data ?? [];
     } catch (e) {
       _log('Ошибка получения пользователей: $e');
+      return [];
+    }
+  }
+
+  Future<List<dynamic>> searchUsers(String query) async {
+    try {
+      await waitForToken();
+
+      if (!hasToken) {
+        _log('Нет токена для поиска пользователей');
+        return [];
+      }
+
+      final response = await _dio.get('/users/search', queryParameters: {
+        'q': query,
+      });
+
+      return response.data ?? [];
+    } catch (e) {
+      _log('Ошибка поиска пользователей: $e');
       return [];
     }
   }
@@ -389,7 +390,7 @@ class ApiService {
     }
   }
 
-  Future<Chat?> createChat({required String userId, String? userName}) async {
+  Future<Chat?> createOrGetChat(String userId, String chatName) async {
     try {
       await waitForToken();
 
@@ -398,9 +399,9 @@ class ApiService {
         return null;
       }
 
-      final response = await _dio.post('/chats/create', data: {
+      final response = await _dio.post('/chats/', data: {
         'userId': userId,
-        'userName': userName,
+        'chatName': chatName,
       });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -415,6 +416,14 @@ class ApiService {
     }
   }
 
+  // Метод с именованными параметрами для совместимости
+  Future<Chat?> createChat({
+    required String userId,
+    String? userName,
+  }) async {
+    return createOrGetChat(userId, userName ?? 'Chat');
+  }
+
   Future<bool> deleteChat(String chatId) async {
     try {
       await waitForToken();
@@ -424,18 +433,20 @@ class ApiService {
         return false;
       }
 
-      final response = await _dio.delete('/chats/delete', data: {
-        'chatId': chatId,
-      });
+      final response = await _dio.delete('/chats/$chatId');
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        _log('Чат удален: $chatId');
+        return true;
+      } else {
+        _log('Ошибка удаления чата: ${response.statusCode}');
+        return false;
+      }
     } catch (e) {
       _log('Ошибка удаления чата: $e');
       return false;
     }
   }
-
-  // ===== СООБЩЕНИЯ =====
 
   Future<List<Message>> getMessages(String chatId) async {
     try {
@@ -446,9 +457,7 @@ class ApiService {
         return [];
       }
 
-      final response = await _dio.get('/messages/', queryParameters: {
-        'chatId': chatId,
-      });
+      final response = await _dio.get('/chats/$chatId/messages');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data ?? [];
@@ -481,7 +490,7 @@ class ApiService {
         'chatId': chatId,
         'content': content,
         'type': type,
-        'replyToId': replyToId,
+        if (replyToId != null) 'replyToId': replyToId,
       });
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -496,104 +505,29 @@ class ApiService {
     }
   }
 
-  Future<bool> markMessageAsRead(String messageId) async {
+  Future<bool> markMessagesAsRead(String chatId,
+      [List<String>? messageIds]) async {
     try {
       await waitForToken();
 
       if (!hasToken) {
-        _log('Нет токена для отметки сообщения как прочитанного');
+        _log('Нет токена для отметки сообщений');
         return false;
       }
 
-      final response = await _dio.post('/messages/read', data: {
-        'messageId': messageId,
-      });
-
-      return response.statusCode == 200;
-    } catch (e) {
-      _log('Ошибка отметки сообщения как прочитанного: $e');
-      return false;
-    }
-  }
-
-  // НОВЫЙ МЕТОД ДЛЯ ОТМЕТКИ ВСЕХ СООБЩЕНИЙ В ЧАТЕ КАК ПРОЧИТАННЫХ
-  Future<bool> markMessagesAsRead(String chatId) async {
-    try {
-      await waitForToken();
-
-      if (!hasToken) {
-        _log('Нет токена для отметки сообщений как прочитанных');
-        return false;
-      }
-
-      final response = await _dio.post('/messages/mark-read', data: {
-        'chatId': chatId,
+      final response = await _dio.post('/chats/$chatId/read', data: {
+        if (messageIds != null) 'messageIds': messageIds,
       });
 
       if (response.statusCode == 200) {
-        _log('✅ Сообщения отмечены как прочитанные');
+        _log('Сообщения отмечены как прочитанные');
         return true;
       } else {
         _log('Ошибка отметки сообщений: ${response.statusCode}');
         return false;
       }
     } catch (e) {
-      _log('Ошибка отметки сообщений как прочитанных: $e');
-      return false;
-    }
-  }
-
-  // ===== ПРОФИЛЬ =====
-
-  Future<bool> updateProfile({
-    String? username,
-    String? email,
-    String? bio,
-    String? avatarUrl,
-  }) async {
-    try {
-      await waitForToken();
-
-      if (!hasToken) {
-        _log('Нет токена для обновления профиля');
-        return false;
-      }
-
-      final data = <String, dynamic>{};
-      if (username != null) data['username'] = username;
-      if (email != null) data['email'] = email;
-      if (bio != null) data['bio'] = bio;
-      if (avatarUrl != null) data['avatarUrl'] = avatarUrl;
-
-      final response = await _dio.put('/profile/update', data: data);
-
-      return response.statusCode == 200;
-    } catch (e) {
-      _log('Ошибка обновления профиля: $e');
-      return false;
-    }
-  }
-
-  Future<bool> changePassword({
-    required String oldPassword,
-    required String newPassword,
-  }) async {
-    try {
-      await waitForToken();
-
-      if (!hasToken) {
-        _log('Нет токена для смены пароля');
-        return false;
-      }
-
-      final response = await _dio.post('/profile/change-password', data: {
-        'oldPassword': oldPassword,
-        'newPassword': newPassword,
-      });
-
-      return response.statusCode == 200;
-    } catch (e) {
-      _log('Ошибка смены пароля: $e');
+      _log('Ошибка отметки сообщений: $e');
       return false;
     }
   }
@@ -624,54 +558,6 @@ class ApiService {
     } catch (e) {
       _log('Ошибка загрузки файла: $e');
       return null;
-    }
-  }
-
-  // ===== ПОИСК =====
-
-  Future<List<dynamic>> searchUsers(String query) async {
-    try {
-      await waitForToken();
-
-      if (!hasToken) {
-        _log('Нет токена для поиска пользователей');
-        return [];
-      }
-
-      final response = await _dio.get('/users/search', queryParameters: {
-        'q': query,
-      });
-
-      return response.data ?? [];
-    } catch (e) {
-      _log('Ошибка поиска пользователей: $e');
-      return [];
-    }
-  }
-
-  Future<List<Message>> searchMessages(String query) async {
-    try {
-      await waitForToken();
-
-      if (!hasToken) {
-        _log('Нет токена для поиска сообщений');
-        return [];
-      }
-
-      final response = await _dio.get('/messages/search', queryParameters: {
-        'q': query,
-      });
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data ?? [];
-        return data.map((json) => Message.fromJson(json)).toList();
-      } else {
-        _log('Ошибка поиска сообщений: ${response.statusCode}');
-        return [];
-      }
-    } catch (e) {
-      _log('Ошибка поиска сообщений: $e');
-      return [];
     }
   }
 }
