@@ -15,7 +15,7 @@ fonts/
 assets/
 .metadata
 analysis_options.yaml
-
+.gitignore
 
 
 # IDE
