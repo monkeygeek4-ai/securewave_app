@@ -1,9 +1,12 @@
+// lib/screens/auth/login_screen.dart (ОБНОВЛЕННАЯ ВЕРСИЯ)
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../home_screen.dart';
-import '../auth/register_screen.dart';
+import 'register_screen.dart';
+import 'invite_register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -45,34 +48,22 @@ class _LoginScreenState extends State<LoginScreen> {
           chatProvider.setCurrentUserId(authProvider.currentUser!.id);
         }
 
-        // УБИРАЕМ дублирование WebSocket подключения
-        // Оно уже происходит в auth_provider.dart при login()
-
-        // Даем время на установку WebSocket соединения
         await Future.delayed(Duration(milliseconds: 500));
 
-        // Загружаем чаты
         try {
           await chatProvider.loadChats();
         } catch (e) {
           print('[Login] Ошибка загрузки чатов: $e');
         }
 
-        // Используем pushReplacement чтобы нельзя было вернуться назад
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => HomeScreen()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ??
-                'Неверное имя пользователя или пароль'),
+            content: Text(authProvider.errorMessage ?? 'Ошибка входа'),
             backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
           ),
         );
       }
@@ -106,25 +97,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.lock_outline,
-                          size: 60,
-                          color: Color(0xFF7C3AED),
+                        Text(
+                          '🔐',
+                          style: TextStyle(fontSize: 60),
                         ),
                         SizedBox(height: 10),
                         Text(
-                          'SecureWave',
+                          'Добро пожаловать',
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF7C3AED),
-                          ),
-                        ),
-                        Text(
-                          'Безопасный мессенджер',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
                           ),
                         ),
                         SizedBox(height: 30),
@@ -132,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _usernameController,
                           decoration: InputDecoration(
                             labelText: 'Имя пользователя',
-                            hintText: 'Введите ваш логин',
+                            hintText: 'Введите ваше имя',
                             prefixIcon: Icon(Icons.person),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
@@ -164,7 +147,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _obscurePassword
                                     ? Icons.visibility_off
                                     : Icons.visibility,
-                                color: Colors.grey,
                               ),
                               onPressed: () {
                                 setState(() {
@@ -182,36 +164,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             if (value == null || value.isEmpty) {
                               return 'Пожалуйста, введите пароль';
                             }
-                            if (value.length < 6) {
-                              return 'Пароль должен быть не менее 6 символов';
-                            }
                             return null;
                           },
-                          textInputAction: TextInputAction.done,
                           onFieldSubmitted: (_) => _login(),
                         ),
-                        SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              // TODO: Восстановление пароля
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Функция в разработке'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                            },
-                            child: Text(
-                              'Забыли пароль?',
-                              style: TextStyle(
-                                color: Color(0xFF7C3AED),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 20),
+                        SizedBox(height: 30),
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -222,62 +179,67 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              elevation: _isLoading ? 0 : 3,
                             ),
                             child: _isLoading
-                                ? Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
-                                      SizedBox(width: 10),
-                                      Text(
-                                        'Вход...',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ],
+                                ? SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Text(
                                     'Войти',
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: 16,
                                       color: Colors.white,
-                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
                           ),
                         ),
                         SizedBox(height: 20),
+                        Divider(),
+                        SizedBox(height: 10),
+                        // НОВАЯ КНОПКА - Регистрация по инвайту
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => InviteRegisterScreen(),
+                                ),
+                              );
+                            },
+                            icon: Icon(Icons.card_giftcard),
+                            label: Text('Регистрация по инвайту'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Color(0xFF7C3AED),
+                              side: BorderSide(color: Color(0xFF7C3AED)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              'Нет аккаунта? ',
-                              style: TextStyle(color: Colors.grey[700]),
-                            ),
+                            Text('Нет аккаунта?'),
                             TextButton(
                               onPressed: () {
-                                Navigator.of(context).pushReplacement(
+                                Navigator.push(
+                                  context,
                                   MaterialPageRoute(
-                                      builder: (_) => RegisterScreen()),
+                                    builder: (_) => RegisterScreen(),
+                                  ),
                                 );
                               },
-                              child: Text(
-                                'Зарегистрироваться',
-                                style: TextStyle(
-                                  color: Color(0xFF7C3AED),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              child: Text('Зарегистрироваться'),
                             ),
                           ],
                         ),

@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart
+// lib/providers/auth_provider.dart (ОБНОВЛЕННАЯ ВЕРСИЯ)
 
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
@@ -135,84 +135,72 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
-    try {
-      print('[Auth] Выход из системы...');
-      _wsManager.disconnect();
-      await _api.logout();
-      await _api.clearToken();
-      print('[Auth] Токен очищен, выход завершен');
-    } catch (e) {
-      print('[Auth] Ошибка при logout: $e');
-    } finally {
-      _currentUser = null;
-      _isAuthenticated = false;
-      _errorMessage = null;
-      notifyListeners();
+  // НОВЫЙ МЕТОД: Установка авторизованного состояния (для инвайт-регистрации)
+  void setAuthenticated(Map<String, dynamic> userData, String? token) {
+    _currentUser = User.fromJson(userData);
+    _isAuthenticated = true;
+
+    if (token != null && token.isNotEmpty) {
+      Future.delayed(Duration(milliseconds: 500), () async {
+        try {
+          await _wsManager.connect(token: token);
+        } catch (e) {
+          print('[Auth] Ошибка подключения WebSocket: $e');
+        }
+      });
     }
+
+    notifyListeners();
   }
 
   Future<void> checkAuthStatus() async {
     try {
-      print('[Auth] Проверка статуса авторизации...');
+      final response = await _api.get('/auth/me');
 
-      final hasToken = await _api.waitForToken();
-
-      if (!hasToken) {
-        print('[Auth] Нет сохраненного токена');
-        _isAuthenticated = false;
-        _currentUser = null;
+      if (response['id'] != null) {
+        _currentUser = User.fromJson(response);
+        _isAuthenticated = true;
         notifyListeners();
-        return;
-      }
 
-      print('[Auth] Токен найден, валидируем на сервере...');
-
-      try {
-        final response = await _api.validateToken();
-
-        print('[Auth] Ответ validateToken: $response');
-
-        if (response['valid'] == true && response['user'] != null) {
-          _currentUser = User.fromJson(response['user']);
-          _isAuthenticated = true;
-          print(
-              '[Auth] Токен валиден, пользователь: ${_currentUser?.username}');
-          print('[Auth] isAuthenticated = $_isAuthenticated');
-          print('[Auth] currentUser = $_currentUser');
-
-          String? token = _api.currentToken;
-          if (token != null && token.isNotEmpty) {
-            print('[Auth] Подключаем WebSocket после валидации токена');
-            await Future.delayed(Duration(milliseconds: 300));
-
-            try {
-              await _wsManager.connect(token: token);
-            } catch (e) {
-              print('[Auth] Ошибка подключения WebSocket: $e');
-            }
+        if (_api.currentToken != null) {
+          try {
+            await _wsManager.connect(token: _api.currentToken!);
+          } catch (e) {
+            print('[Auth] Ошибка подключения WebSocket: $e');
           }
-        } else {
-          print('[Auth] Токен невалиден, очищаем');
-          await _api.clearToken();
-          _isAuthenticated = false;
-          _currentUser = null;
         }
-      } catch (e) {
-        print('[Auth] Ошибка валидации токена: $e');
-        await _api.clearToken();
+      } else {
         _isAuthenticated = false;
-        _currentUser = null;
+        notifyListeners();
       }
-
-      notifyListeners();
-      print(
-          '[Auth] После notifyListeners: isAuthenticated = $_isAuthenticated');
     } catch (e) {
-      print('[Auth] Ошибка проверки статуса авторизации: $e');
+      print('[Auth] Ошибка проверки статуса: $e');
       _isAuthenticated = false;
-      _currentUser = null;
       notifyListeners();
     }
+  }
+
+  Future<void> logout() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      _wsManager.disconnect();
+      await _api.clearToken();
+
+      _currentUser = null;
+      _isAuthenticated = false;
+      _errorMessage = null;
+    } catch (e) {
+      print('[Auth] Ошибка выхода: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void clearError() {
+    _errorMessage = null;
+    notifyListeners();
   }
 }

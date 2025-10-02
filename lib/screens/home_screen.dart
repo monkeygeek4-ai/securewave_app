@@ -4,16 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../providers/chat_provider.dart';
-import '../services/websocket_manager.dart';
+import '../providers/auth_provider.dart';
 import '../services/webrtc_service.dart';
 import '../models/chat.dart';
 import '../models/call.dart';
 import '../widgets/chat_list_item.dart';
-import '../widgets/custom_drawer.dart';
-import '../widgets/incoming_call_overlay.dart';
 import 'chat_screen.dart';
 import 'new_chat_screen.dart';
 import 'chat_view.dart';
+import 'profile/profile_settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -56,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _listenForIncomingCalls() {
     try {
-      // Слушаем состояние звонка из WebRTC сервиса
       _callSubscription = WebRTCService.instance.callState.listen((call) {
         if (call != null && call.status == CallStatus.incoming) {
           setState(() {
@@ -70,15 +68,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     } catch (e) {
       print('[Home] Ошибка подписки на звонки: $e');
-      // Продолжаем работу без звонков, если WebRTC недоступен
     }
   }
 
   void _startPeriodicRefresh() {
-    // Обновляем список чатов каждые 3 секунды
     _refreshTimer = Timer.periodic(Duration(seconds: 3), (_) {
-      // Обновляем только если нет открытого чата на мобильном
-      // или всегда на планшете
       final isTablet = MediaQuery.of(context).size.width > 600;
       if (isTablet || _selectedChatId == null) {
         _refreshChats(showIndicator: false);
@@ -88,8 +82,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _checkChats() async {
     final chatProvider = context.read<ChatProvider>();
-
-    // Если чатов нет и они не загружаются, пробуем загрузить еще раз
     if (chatProvider.chats.isEmpty && !chatProvider.isLoading) {
       await _refreshChats();
     }
@@ -98,14 +90,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _refreshChats({bool showIndicator = true}) async {
     try {
       await context.read<ChatProvider>().loadChats();
-
-      // Принудительно обновляем UI после загрузки
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
       print('[Home] Ошибка обновления чатов: $e');
-
       if (mounted && showIndicator) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -142,9 +131,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _refreshChats();
-      _startPeriodicRefresh(); // Возобновляем обновление
+      _startPeriodicRefresh();
     } else if (state == AppLifecycleState.paused) {
-      _refreshTimer?.cancel(); // Останавливаем обновление
+      _refreshTimer?.cancel();
     }
   }
 
@@ -153,7 +142,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _selectedChatId = chatId;
     });
 
-    // Отмечаем сообщения как прочитанные при выборе чата
     final chatProvider = context.read<ChatProvider>();
     chatProvider.setCurrentChatId(chatId);
     chatProvider.markMessagesAsRead(chatId);
@@ -211,11 +199,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Navigator.pop(context);
 
               try {
-                // ИСПРАВЛЕНО: убрали обработку результата deleted
                 await context.read<ChatProvider>().deleteChat(chat.id);
 
                 if (mounted) {
-                  // Если удаленный чат был выбран, сбрасываем выбор
                   if (_selectedChatId == chat.id) {
                     setState(() {
                       _selectedChatId = null;
@@ -252,74 +238,52 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isTablet = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      drawer: isTablet ? null : CustomDrawer(),
-      body: Stack(
+      drawer: isTablet ? null : _buildDrawer(),
+      body: Row(
         children: [
-          Row(
-            children: [
-              // Левая панель - список чатов
-              Container(
-                width: isTablet ? 350 : MediaQuery.of(context).size.width,
-                child: _buildChatListPanel(hasDrawer: !isTablet),
-              ),
-
-              // Правая панель - открытый чат (только на планшете)
-              if (isTablet)
-                Expanded(
-                  child: _selectedChatId != null
-                      ? Consumer<ChatProvider>(
-                          builder: (context, chatProvider, _) {
-                            final chat =
-                                chatProvider.getChatById(_selectedChatId!);
-                            if (chat == null) {
-                              return _buildEmptyChatArea();
-                            }
-                            return ChatView(
-                              key: ValueKey(_selectedChatId),
-                              chat: chat,
-                              onBack: () {
-                                setState(() {
-                                  _selectedChatId = null;
-                                });
-                              },
-                            );
-                          },
-                        )
-                      : _buildEmptyChatArea(),
-                ),
-            ],
+          // Левая панель - список чатов
+          Container(
+            width: isTablet ? 350 : MediaQuery.of(context).size.width,
+            child: _buildChatListPanel(hasDrawer: !isTablet),
           ),
 
-          // FAB для создания нового чата (только на мобильном)
-          if (!isTablet)
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: FloatingActionButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => NewChatScreen()),
-                  );
-                },
-                child: Icon(Icons.edit),
-                backgroundColor: Color(0xFF2B5CE6),
-              ),
-            ),
-
-          // Оверлей входящего звонка
-          if (_incomingCall != null)
-            IncomingCallOverlay(
-              incomingCall: _incomingCall!,
-              onDismiss: () {
-                setState(() {
-                  _incomingCall = null;
-                });
-              },
+          // Правая панель - открытый чат (только на планшете)
+          if (isTablet)
+            Expanded(
+              child: _selectedChatId != null
+                  ? Consumer<ChatProvider>(
+                      builder: (context, chatProvider, _) {
+                        final chat = chatProvider.getChatById(_selectedChatId!);
+                        if (chat == null) {
+                          return Center(child: Text('Чат не найден'));
+                        }
+                        return ChatView(chatId: chat.id);
+                      },
+                    )
+                  : Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 80,
+                            color: Colors.grey[400],
+                          ),
+                          SizedBox(height: 20),
+                          Text(
+                            'Выберите чат',
+                            style: TextStyle(
+                              fontSize: 20,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
             ),
         ],
       ),
-      floatingActionButton: isTablet
+      floatingActionButton: !isTablet
           ? FloatingActionButton(
               onPressed: () {
                 Navigator.push(
@@ -359,72 +323,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Scaffold.of(context).openDrawer();
                         },
                       ),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(Icons.menu, color: Colors.white),
-                      onPressed: () {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (context) => Container(
-                            height: MediaQuery.of(context).size.height * 0.7,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).scaffoldBackgroundColor,
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(20),
-                              ),
-                            ),
-                            child: CustomDrawer(),
-                          ),
-                        );
-                      },
                     ),
-                  Text(
-                    'SecureWave',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      'SecureWave',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  Spacer(),
-                  // Кнопка обновления
                   IconButton(
-                    icon: Icon(Icons.refresh, color: Colors.white),
-                    onPressed: _refreshChats,
-                    tooltip: 'Обновить чаты',
-                  ),
-                  // Индикатор подключения
-                  StreamBuilder<ConnectionStatus>(
-                    stream: WebSocketManager.instance.connectionStatus,
-                    builder: (context, snapshot) {
-                      final status =
-                          snapshot.data ?? ConnectionStatus.disconnected;
-                      return Container(
-                        width: 10,
-                        height: 10,
-                        margin: EdgeInsets.only(left: 8),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: status == ConnectionStatus.connected
-                              ? Colors.green
-                              : status == ConnectionStatus.connecting
-                                  ? Colors.orange
-                                  : Colors.red,
-                        ),
+                    icon: Icon(Icons.edit, color: Colors.white),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => NewChatScreen()),
                       );
                     },
                   ),
                 ],
               ),
-              // Строка поиска
+              SizedBox(height: 8),
+              // Поиск
               Container(
-                margin: EdgeInsets.only(top: 8, bottom: 8),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(25),
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: TextField(
                   controller: _searchController,
@@ -442,74 +368,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-        // Список чатов с RefreshIndicator
+        // Список чатов
         Expanded(
           child: Consumer<ChatProvider>(
             builder: (context, chatProvider, _) {
               if (chatProvider.isLoading && chatProvider.chats.isEmpty) {
-                return Center(
-                  child: CircularProgressIndicator(),
-                );
+                return Center(child: CircularProgressIndicator());
               }
 
               final filteredChats = _getFilteredChats(chatProvider.chats);
 
               if (filteredChats.isEmpty) {
-                return RefreshIndicator(
-                  onRefresh: _refreshChats,
-                  child: ListView(
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        height: MediaQuery.of(context).size.height * 0.7,
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _isSearching
-                                    ? Icons.search_off
-                                    : Icons.chat_bubble_outline,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              SizedBox(height: 16),
-                              Text(
-                                _isSearching ? 'Чаты не найдены' : 'Нет чатов',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              if (!_isSearching) ...[
-                                SizedBox(height: 8),
-                                Text(
-                                  'Создайте новый чат',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                                SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => NewChatScreen(),
-                                      ),
-                                    );
-                                  },
-                                  icon: Icon(Icons.add),
-                                  label: Text('Новый чат'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Color(0xFF2B5CE6),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        _isSearching ? 'Ничего не найдено' : 'Нет чатов',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
                         ),
                       ),
+                      if (!_isSearching) ...[
+                        SizedBox(height: 8),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => NewChatScreen(),
+                              ),
+                            );
+                          },
+                          child: Text('Создать новый чат'),
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -518,41 +418,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return RefreshIndicator(
                 onRefresh: _refreshChats,
                 child: ListView.builder(
-                  physics: AlwaysScrollableScrollPhysics(),
                   itemCount: filteredChats.length,
                   itemBuilder: (context, index) {
                     final chat = filteredChats[index];
+                    final isSelected = chat.id == _selectedChatId;
 
-                    // Для планшетного режима - подсветка выбранного чата
-                    final isSelected = _selectedChatId == chat.id;
+                    return ChatListItem(
+                      chat: chat,
+                      isSelected: isSelected,
+                      onTap: () {
+                        final isTablet =
+                            MediaQuery.of(context).size.width > 600;
 
-                    // Получаем информацию о печатающем пользователе
-                    final typingUser = chatProvider.getTypingUserName(chat.id);
-
-                    return Container(
-                      color: isSelected ? Colors.blue.withOpacity(0.1) : null,
-                      child: ChatListItem(
-                        key: ValueKey(chat.id),
-                        chat: chat,
-                        typingUser: typingUser,
-                        onTap: () {
-                          if (MediaQuery.of(context).size.width > 600) {
-                            _selectChat(chat.id);
-                          } else {
-                            // Для мобильного - открываем полноэкранный чат
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChatScreen(chat: chat),
-                              ),
-                            ).then((_) {
-                              // После возврата обновляем список
-                              _refreshChats(showIndicator: false);
-                            });
-                          }
-                        },
-                        onLongPress: () => _showChatOptions(chat),
-                      ),
+                        if (isTablet) {
+                          _selectChat(chat.id);
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(chatId: chat.id),
+                            ),
+                          );
+                        }
+                      },
+                      onLongPress: () => _showChatOptions(chat),
                     );
                   },
                 ),
@@ -564,47 +453,184 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildEmptyChatArea() {
-    return Container(
-      color: Colors.grey[100],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildDrawer() {
+    final authProvider = context.watch<AuthProvider>();
+    final currentUser = authProvider.currentUser;
+
+    return Drawer(
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF7C3AED).withOpacity(0.1),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: ListView(
+          padding: EdgeInsets.zero,
           children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 80,
-              color: Colors.grey[400],
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Выберите чат',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
+            // Красивый заголовок с градиентом
+            DrawerHeader(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  CircleAvatar(
+                    radius: 35,
+                    backgroundColor: Colors.white,
+                    backgroundImage: currentUser?.avatar != null &&
+                            currentUser!.avatar!.isNotEmpty
+                        ? NetworkImage(currentUser.avatar!)
+                        : null,
+                    child: currentUser?.avatar == null ||
+                            currentUser!.avatar!.isEmpty
+                        ? Icon(Icons.person, size: 35, color: Color(0xFF7C3AED))
+                        : null,
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    currentUser?.fullName ?? currentUser?.username ?? 'User',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    currentUser?.nickname != null
+                        ? '@${currentUser!.nickname}'
+                        : '@${currentUser?.username ?? ''}',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              'или создайте новый',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
-              ),
-            ),
-            SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () {
+
+            // Пункт "Настройки профиля"
+            ListTile(
+              leading: Icon(Icons.settings, color: Color(0xFF7C3AED)),
+              title: Text('Настройки профиля'),
+              subtitle: Text('Редактировать данные и фото'),
+              onTap: () {
+                Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => NewChatScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => ProfileSettingsScreen(),
+                  ),
                 );
               },
-              icon: Icon(Icons.add),
-              label: Text('Новый чат'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF2B5CE6),
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+
+            Divider(),
+
+            // Пункт "Тема"
+            ListTile(
+              leading: Icon(Icons.brightness_6, color: Colors.grey[700]),
+              title: Text('Тема'),
+              trailing: Switch(
+                value: Theme.of(context).brightness == Brightness.dark,
+                onChanged: (value) {
+                  // TODO: Переключение темы
+                },
+                activeColor: Color(0xFF7C3AED),
+              ),
+            ),
+
+            // Пункт "О приложении"
+            ListTile(
+              leading: Icon(Icons.info_outline, color: Colors.grey[700]),
+              title: Text('О приложении'),
+              onTap: () {
+                Navigator.pop(context);
+                showAboutDialog(
+                  context: context,
+                  applicationName: 'SecureWave',
+                  applicationVersion: '1.0.0',
+                  applicationIcon: Icon(
+                    Icons.security,
+                    size: 50,
+                    color: Color(0xFF7C3AED),
+                  ),
+                  children: [
+                    Text('Безопасный мессенджер с видеозвонками'),
+                    SizedBox(height: 10),
+                    Text('© 2025 SecureWave Team'),
+                  ],
+                );
+              },
+            ),
+
+            Divider(),
+
+            // Пункт "Выход"
+            ListTile(
+              leading: Icon(Icons.exit_to_app, color: Colors.red),
+              title: Text(
+                'Выход',
+                style: TextStyle(color: Colors.red),
+              ),
+              onTap: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Выход'),
+                    content: Text('Вы уверены, что хотите выйти?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Отмена'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: Text('Выйти'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await authProvider.logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushNamedAndRemoveUntil(
+                      '/login',
+                      (route) => false,
+                    );
+                  }
+                }
+              },
+            ),
+
+            SizedBox(height: 20),
+
+            // Версия приложения внизу
+            Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'SecureWave v1.0.0',
+                  style: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ),
           ],

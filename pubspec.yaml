@@ -15,6 +15,7 @@ dependencies:
   animations: ^2.0.10
   shimmer: ^3.0.0
   flutter_slidable: ^3.0.1
+  mask_text_input_formatter: ^2.9.0
   
   # Сетевые запросы
   http: ^1.1.0
