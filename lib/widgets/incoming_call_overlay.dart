@@ -30,7 +30,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   void initState() {
     super.initState();
 
-    print('[IncomingCallOverlay] ✅ initState вызван');
+    print('[IncomingCallOverlay] initState вызван');
     print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
     print(
         '[IncomingCallOverlay] callerName: ${widget.incomingCall.callerName}');
@@ -51,11 +51,11 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
     // Автоматически отклоняем звонок через 30 секунд
     _timeoutTimer = Timer(Duration(seconds: 30), () {
-      print('[IncomingCallOverlay] ⏰ Таймаут 30 секунд истек');
+      print('[IncomingCallOverlay] Таймаут 30 секунд истек');
       _declineCall();
     });
 
-    print('[IncomingCallOverlay] ⏱️ Таймер установлен на 30 секунд');
+    print('[IncomingCallOverlay] Таймер установлен на 30 секунд');
   }
 
   @override
@@ -67,7 +67,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   }
 
   void _acceptCall() {
-    print('[IncomingCallOverlay] ✅ Принимаем звонок');
+    print('[IncomingCallOverlay] Принимаем звонок');
     _timeoutTimer?.cancel();
 
     // Закрываем оверлей
@@ -84,9 +84,8 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   }
 
   void _declineCall() {
-    print('[IncomingCallOverlay] ❌ _declineCall вызван');
-    print(
-        '[IncomingCallOverlay] callId для отклонения: ${widget.incomingCall.id}');
+    print('[IncomingCallOverlay] Отклоняем звонок');
+    print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
 
     _timeoutTimer?.cancel();
 
@@ -101,128 +100,107 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   Widget build(BuildContext context) {
     final isVideoCall = widget.incomingCall.callType == 'video';
 
-    return Positioned(
-      top: 50,
-      left: 20,
-      right: 20,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+    // УБРАЛИ Positioned - теперь это обычный виджет
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
               ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Входящий звонок',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Входящий звонок',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
                   ),
-                ),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.white24,
-                      backgroundImage: widget.incomingCall.callerAvatar != null
-                          ? NetworkImage(widget.incomingCall.callerAvatar!)
-                          : null,
-                      child: widget.incomingCall.callerAvatar == null
-                          ? Icon(Icons.person, color: Colors.white, size: 30)
-                          : null,
-                    ),
-                    SizedBox(width: 15),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.incomingCall.callerName,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                  SizedBox(height: 10),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: Colors.white24,
+                        backgroundImage: widget.incomingCall.callerAvatar !=
+                                null
+                            ? NetworkImage(widget.incomingCall.callerAvatar!)
+                            : null,
+                        child: widget.incomingCall.callerAvatar == null
+                            ? Icon(Icons.person, color: Colors.white, size: 30)
+                            : null,
+                      ),
+                      SizedBox(width: 15),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.incomingCall.callerName,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                isVideoCall ? Icons.videocam : Icons.call,
-                                color: Colors.white70,
-                                size: 16,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                isVideoCall ? 'Видеозвонок' : 'Аудиозвонок',
-                                style: TextStyle(
+                            SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  isVideoCall ? Icons.videocam : Icons.call,
                                   color: Colors.white70,
-                                  fontSize: 14,
+                                  size: 16,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Кнопка отклонить
-                    InkWell(
-                      onTap: _declineCall,
-                      borderRadius: BorderRadius.circular(30),
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.call_end,
-                          color: Colors.white,
-                          size: 30,
+                                SizedBox(width: 4),
+                                Text(
+                                  isVideoCall ? 'Видео звонок' : 'Аудио звонок',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-
-                    // Кнопка принять
-                    InkWell(
-                      onTap: _acceptCall,
-                      borderRadius: BorderRadius.circular(30),
-                      child: Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isVideoCall ? Icons.videocam : Icons.call,
-                          color: Colors.white,
-                          size: 30,
-                        ),
+                    ],
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // Кнопка отклонения
+                      FloatingActionButton(
+                        onPressed: _declineCall,
+                        backgroundColor: Colors.red,
+                        child: Icon(Icons.call_end, color: Colors.white),
+                        heroTag: 'decline',
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      // Кнопка принятия
+                      FloatingActionButton(
+                        onPressed: _acceptCall,
+                        backgroundColor: Colors.green,
+                        child: Icon(Icons.call, color: Colors.white),
+                        heroTag: 'accept',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
