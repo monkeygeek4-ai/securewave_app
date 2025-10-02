@@ -5,11 +5,10 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import '../models/chat.dart';
 import '../models/message.dart';
-import '../models/call.dart';
 import '../providers/chat_provider.dart';
+import '../providers/auth_provider.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/typing_indicator.dart';
-import '../services/webrtc_service.dart';
 import 'call_screen.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -108,6 +107,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _focusNode.dispose();
     _typingTimer?.cancel();
+
     super.dispose();
   }
 
@@ -137,10 +137,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final chatProvider = context.read<ChatProvider>();
-      await chatProvider.sendMessage(
-        chatId: _chatId,
-        content: text,
-      );
+      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРАМИ chatId и content
+      await chatProvider.sendMessage(text, chatId: _chatId);
 
       // Прокрутка вниз после отправки
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -165,6 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (!_isTyping) {
       _isTyping = true;
+      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
       chatProvider.sendTypingStatus(_chatId, true);
     }
 
@@ -175,13 +174,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void _stopTyping() {
     if (_isTyping) {
       _isTyping = false;
+      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
       context.read<ChatProvider>().sendTypingStatus(_chatId, false);
     }
     _typingTimer?.cancel();
   }
 
   void _startCall(String callType) {
-    // Изменено с CallType на String
     // Получаем ID получателя из чата
     final chatProvider = context.read<ChatProvider>();
 
@@ -222,8 +221,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
       // Запускаем звонок с данными из widget.chat
       print(
-          '[ChatScreen] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId (из widget.chat)');
+          '[ChatScreen] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId');
 
+      // Переходим на экран звонка
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -239,38 +239,26 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Получаем ID собеседника
-    String? receiverId;
-
-    // Сначала пробуем получить из receiverId (прямое поле)
-    if (chat.receiverId != null && chat.receiverId!.isNotEmpty) {
-      receiverId = chat.receiverId;
-      print('[ChatScreen] Используем receiverId из чата: $receiverId');
-    }
-    // Затем пробуем получить из participants
-    else if (chat.participants != null && chat.participants!.length > 1) {
-      receiverId = chat.participants!.firstWhere(
-        (id) => id != chatProvider.currentUserId && id.isNotEmpty,
-        orElse: () => '',
-      );
-      print('[ChatScreen] Используем receiverId из participants: $receiverId');
-    }
-
-    // Если не удалось получить receiverId, показываем ошибку
-    if (receiverId == null || receiverId.isEmpty) {
-      print('[ChatScreen] Не удалось определить получателя звонка');
-      print('[ChatScreen] Chat receiverId: ${chat.receiverId}');
-      print('[ChatScreen] Chat participants: ${chat.participants}');
-      print('[ChatScreen] Current user ID: ${chatProvider.currentUserId}');
-
+    // Если чат найден, получаем receiverId из участников
+    final participants = chat.participants;
+    if (participants == null || participants.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Не удалось начать звонок: получатель не определен'),
+          content: Text('Не удалось начать звонок: участники не найдены'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
+
+    // Находим собеседника (не текущего пользователя)
+    final currentUserId = chatProvider.currentUserId;
+
+    // participants - это List<String>, поэтому просто ищем ID, который не равен currentUserId
+    final receiverId = participants.firstWhere(
+      (id) => id != currentUserId,
+      orElse: () => participants.first,
+    );
 
     print(
         '[ChatScreen] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId');
@@ -282,8 +270,8 @@ class _ChatScreenState extends State<ChatScreen> {
         builder: (_) => CallScreen(
           chatId: _chatId,
           receiverId: receiverId,
-          receiverName: _chatName,
-          receiverAvatar: _chatAvatar,
+          receiverName: chat.name,
+          receiverAvatar: chat.avatarUrl,
           callType: callType,
         ),
       ),
@@ -395,19 +383,16 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Очистить чат?'),
-        content: Text('Все сообщения будут удалены безвозвратно'),
+        content: Text('Все сообщения будут удалены. Это действие необратимо.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Отмена'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              context.read<ChatProvider>().clearMessages(_chatId);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Чат очищен')),
-              );
+              // TODO: Реализовать очистку чата
             },
             child: Text('Очистить', style: TextStyle(color: Colors.red)),
           ),
@@ -421,7 +406,7 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Удалить чат?'),
-        content: Text('Чат будет удален безвозвратно'),
+        content: Text('Чат будет удален безвозвратно.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -430,77 +415,34 @@ class _ChatScreenState extends State<ChatScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              final success =
-                  await context.read<ChatProvider>().deleteChat(_chatId);
-              if (success) {
-                Navigator.pop(this.context);
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(content: Text('Чат удален')),
-                );
+
+              try {
+                // ИСПРАВЛЕНО: убрали обработку результата deleted
+                await context.read<ChatProvider>().deleteChat(_chatId);
+
+                if (mounted) {
+                  Navigator.of(context).pop(); // Возвращаемся на главный экран
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Чат удален'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Не удалось удалить чат'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: Text('Удалить', style: TextStyle(color: Colors.red)),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showMessageOptions(Message message, bool isMe) {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(Icons.copy),
-              title: Text('Копировать'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Копировать в буфер
-              },
-            ),
-            if (isMe) ...[
-              ListTile(
-                leading: Icon(Icons.edit),
-                title: Text('Редактировать'),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Редактировать сообщение
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.delete, color: Colors.red),
-                title: Text('Удалить', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Удалить сообщение
-                },
-              ),
-            ],
-            ListTile(
-              leading: Icon(Icons.reply),
-              title: Text('Ответить'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Ответить на сообщение
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.forward),
-              title: Text('Переслать'),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Переслать сообщение
-              },
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -512,30 +454,40 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         backgroundColor: Color(0xFF2B5CE6),
         foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context),
+        ),
         titleSpacing: 0,
         title: InkWell(
           onTap: () {
-            // TODO: Открыть профиль пользователя
+            // TODO: Открыть профиль собеседника
           },
           child: Row(
             children: [
               CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey[300],
+                radius: 20,
+                backgroundColor: Colors.white,
                 backgroundImage:
                     _chatAvatar != null ? NetworkImage(_chatAvatar!) : null,
                 child: _chatAvatar == null
-                    ? Icon(Icons.person, color: Colors.grey[600], size: 20)
+                    ? Text(
+                        _chatName[0].toUpperCase(),
+                        style: TextStyle(color: Color(0xFF2B5CE6)),
+                      )
                     : null,
               ),
-              SizedBox(width: 10),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       _chatName,
-                      style: TextStyle(fontSize: 16),
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Consumer<ChatProvider>(
                       builder: (context, chatProvider, _) {
@@ -564,17 +516,13 @@ class _ChatScreenState extends State<ChatScreen> {
           // Кнопка аудио звонка
           IconButton(
             icon: Icon(Icons.call),
-            onPressed: () {
-              _startCall('audio'); // Используем строку вместо enum
-            },
+            onPressed: () => _startCall('audio'),
             tooltip: 'Аудио звонок',
           ),
           // Кнопка видео звонка
           IconButton(
             icon: Icon(Icons.videocam),
-            onPressed: () {
-              _startCall('video'); // Используем строку вместо enum
-            },
+            onPressed: () => _startCall('video'),
             tooltip: 'Видео звонок',
           ),
           // Кнопка меню
@@ -609,34 +557,30 @@ class _ChatScreenState extends State<ChatScreen> {
                     final message = messages[index];
                     final previousMessage =
                         index > 0 ? messages[index - 1] : null;
-                    final showDate = _shouldShowDate(message, previousMessage);
-                    final isMe = message.senderId == chatProvider.currentUserId;
 
                     return Column(
                       children: [
-                        if (showDate)
-                          Container(
-                            margin: EdgeInsets.symmetric(vertical: 10),
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            child: Text(
-                              _formatDate(message.timestamp),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[700],
+                        if (_shouldShowDate(message, previousMessage))
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                _formatDate(message.timestamp),
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[700]),
                               ),
                             ),
                           ),
-                        GestureDetector(
-                          onLongPress: () => _showMessageOptions(message, isMe),
-                          child: MessageBubble(
-                            message: message,
-                            isMe: isMe,
-                          ),
+                        MessageBubble(
+                          message: message,
+                          isMe: message.senderId ==
+                              context.read<ChatProvider>().currentUserId,
                         ),
                       ],
                     );
@@ -646,24 +590,20 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Индикатор набора текста
+          // Индикатор печати
           Consumer<ChatProvider>(
             builder: (context, chatProvider, _) {
               final typingUser = chatProvider.getTypingUserName(_chatId);
               if (typingUser != null) {
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                return Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     children: [
                       TypingIndicator(),
                       SizedBox(width: 8),
                       Text(
                         '$typingUser печатает...',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                          fontStyle: FontStyle.italic,
-                        ),
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                     ],
                   ),
@@ -675,106 +615,80 @@ class _ChatScreenState extends State<ChatScreen> {
 
           // Поле ввода сообщения
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
-                  blurRadius: 5,
+                  blurRadius: 10,
                   offset: Offset(0, -2),
                 ),
               ],
             ),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: SafeArea(
               child: Row(
                 children: [
+                  // Кнопка прикрепления файлов
                   IconButton(
                     icon: Icon(Icons.attach_file, color: Colors.grey[600]),
                     onPressed: () {
-                      // TODO: Прикрепить файл
+                      // TODO: Прикрепление файлов
                     },
                   ),
+                  // Поле ввода
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(24),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _messageController,
-                              focusNode: _focusNode,
-                              maxLines: 5,
-                              minLines: 1,
-                              textCapitalization: TextCapitalization.sentences,
-                              onChanged: (text) {
-                                _handleTyping();
-                              },
-                              onSubmitted: (_) => _sendMessage(),
-                              decoration: InputDecoration(
-                                hintText: 'Введите сообщение...',
-                                hintStyle: TextStyle(color: Colors.grey[500]),
-                                border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.emoji_emotions_outlined,
-                              color: Colors.grey[600],
-                              size: 24,
-                            ),
-                            onPressed: () {
-                              // TODO: Открыть панель эмодзи
-                            },
-                          ),
-                        ],
+                      child: TextField(
+                        controller: _messageController,
+                        focusNode: _focusNode,
+                        maxLines: null,
+                        textCapitalization: TextCapitalization.sentences,
+                        onChanged: (text) {
+                          if (text.isNotEmpty) {
+                            _handleTyping();
+                          }
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Сообщение',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                        ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 4),
-                  // Кнопка отправки/записи голоса
-                  Builder(
-                    builder: (context) {
-                      final hasText = _messageController.text.trim().isNotEmpty;
-
-                      return Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: hasText ? Color(0xFF2B5CE6) : Colors.grey[300],
-                          shape: BoxShape.circle,
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(24),
-                            onTap: hasText
-                                ? (_isLoading ? null : _sendMessage)
-                                : () {
-                                    // TODO: Голосовое сообщение
-                                    print('Запись голосового сообщения');
-                                  },
-                            child: Center(
-                              child: Icon(
-                                hasText ? Icons.send : Icons.mic,
-                                color:
-                                    hasText ? Colors.white : Colors.grey[700],
-                                size: 24,
+                  SizedBox(width: 8),
+                  // Кнопка отправки
+                  CircleAvatar(
+                    radius: 22,
+                    backgroundColor: _messageController.text.trim().isEmpty
+                        ? Colors.grey[300]
+                        : Color(0xFF2B5CE6),
+                    child: IconButton(
+                      icon: _isLoading
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
                               ),
+                            )
+                          : Icon(
+                              Icons.send,
+                              color: Colors.white,
+                              size: 20,
                             ),
-                          ),
-                        ),
-                      );
-                    },
+                      onPressed:
+                          _messageController.text.trim().isEmpty || _isLoading
+                              ? null
+                              : _sendMessage,
+                    ),
                   ),
                 ],
               ),

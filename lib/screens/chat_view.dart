@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/chat.dart';
-import '../models/message.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
 
@@ -67,9 +66,10 @@ class _ChatViewState extends State<ChatView> {
     _messageController.clear();
 
     try {
+      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРАМИ chatId и content
       await context.read<ChatProvider>().sendMessage(
+            text,
             chatId: widget.chat.id,
-            content: text,
           );
       _scrollToBottom();
     } catch (e) {
@@ -91,11 +91,13 @@ class _ChatViewState extends State<ChatView> {
       _isTyping = true;
       _lastTypingTime = now;
 
+      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
       context.read<ChatProvider>().sendTypingStatus(widget.chat.id, true);
 
       Future.delayed(Duration(seconds: 3), () {
         if (mounted && _isTyping) {
           _isTyping = false;
+          // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
           context.read<ChatProvider>().sendTypingStatus(widget.chat.id, false);
         }
       });
@@ -148,8 +150,8 @@ class _ChatViewState extends State<ChatView> {
                 SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
                         widget.chat.name,
@@ -157,23 +159,22 @@ class _ChatViewState extends State<ChatView> {
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Consumer<ChatProvider>(
                         builder: (context, chatProvider, _) {
                           final typingUser =
                               chatProvider.getTypingUserName(widget.chat.id);
-
                           if (typingUser != null) {
                             return Text(
                               'печатает...',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF2B5CE6),
                                 fontStyle: FontStyle.italic,
+                                color: Colors.grey,
                               ),
                             );
                           }
-
                           return Text(
                             widget.chat.isOnline ? 'в сети' : 'не в сети',
                             style: TextStyle(
@@ -191,13 +192,13 @@ class _ChatViewState extends State<ChatView> {
                 IconButton(
                   icon: Icon(Icons.search),
                   onPressed: () {
-                    // Поиск по чату
+                    // TODO: Поиск по чату
                   },
                 ),
                 IconButton(
                   icon: Icon(Icons.more_vert),
                   onPressed: () {
-                    // Меню чата
+                    // TODO: Меню чата
                   },
                 ),
               ],
@@ -266,7 +267,7 @@ class _ChatViewState extends State<ChatView> {
                           if (!isMe && showAvatar)
                             CircleAvatar(
                               radius: 16,
-                              backgroundColor: Colors.grey[400],
+                              backgroundColor: Color(0xFF2B5CE6),
                               child: Text(
                                 widget.chat.name[0].toUpperCase(),
                                 style: TextStyle(
@@ -274,8 +275,9 @@ class _ChatViewState extends State<ChatView> {
                                   fontSize: 12,
                                 ),
                               ),
-                            ),
-                          if (!isMe && !showAvatar) SizedBox(width: 32),
+                            )
+                          else if (!isMe)
+                            SizedBox(width: 32),
                           SizedBox(width: 8),
                           Flexible(
                             child: Container(
@@ -285,14 +287,7 @@ class _ChatViewState extends State<ChatView> {
                               ),
                               decoration: BoxDecoration(
                                 color: isMe ? Color(0xFF2B5CE6) : Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 2,
-                                    offset: Offset(0, 1),
-                                  ),
-                                ],
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,22 +295,38 @@ class _ChatViewState extends State<ChatView> {
                                   Text(
                                     message.content,
                                     style: TextStyle(
-                                      color:
-                                          isMe ? Colors.white : Colors.black87,
+                                      color: isMe ? Colors.white : Colors.black,
                                       fontSize: 14,
                                     ),
                                   ),
                                   SizedBox(height: 4),
-                                  Text(
-                                    _formatMessageTime(
-                                        DateTime.tryParse(message.timestamp) ??
-                                            DateTime.now()),
-                                    style: TextStyle(
-                                      color: isMe
-                                          ? Colors.white70
-                                          : Colors.grey[600],
-                                      fontSize: 11,
-                                    ),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _formatMessageTime(
+                                          DateTime.parse(message.timestamp),
+                                        ),
+                                        style: TextStyle(
+                                          color: isMe
+                                              ? Colors.white70
+                                              : Colors.grey[600],
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                      if (isMe) ...[
+                                        SizedBox(width: 4),
+                                        Icon(
+                                          message.isRead
+                                              ? Icons.done_all
+                                              : Icons.done,
+                                          size: 14,
+                                          color: message.isRead
+                                              ? Colors.blue[300]
+                                              : Colors.white70,
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
                               ),
@@ -332,7 +343,6 @@ class _ChatViewState extends State<ChatView> {
 
           // Поле ввода
           Container(
-            padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -343,12 +353,13 @@ class _ChatViewState extends State<ChatView> {
                 ),
               ],
             ),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Row(
               children: [
                 IconButton(
-                  icon: Icon(Icons.attach_file),
+                  icon: Icon(Icons.attach_file, color: Colors.grey),
                   onPressed: () {
-                    // Прикрепить файл
+                    // TODO: Прикрепление файлов
                   },
                 ),
                 Expanded(
@@ -361,8 +372,11 @@ class _ChatViewState extends State<ChatView> {
                       controller: _messageController,
                       focusNode: _focusNode,
                       maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.send,
+                      onChanged: (text) {
+                        if (text.isNotEmpty) {
+                          _handleTyping();
+                        }
+                      },
                       decoration: InputDecoration(
                         hintText: 'Сообщение',
                         border: InputBorder.none,
@@ -371,8 +385,6 @@ class _ChatViewState extends State<ChatView> {
                           vertical: 10,
                         ),
                       ),
-                      onChanged: (_) => _handleTyping(),
-                      onSubmitted: (_) => _sendMessage(),
                     ),
                   ),
                 ),

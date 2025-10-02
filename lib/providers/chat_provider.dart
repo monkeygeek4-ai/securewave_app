@@ -194,17 +194,21 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(String content, {String? replyToId}) async {
-    if (_currentChatId == null || content.trim().isEmpty) {
+  // ИСПРАВЛЕНО: метод принимает параметры chatId и content
+  Future<void> sendMessage(String content,
+      {String? chatId, String? replyToId}) async {
+    final targetChatId = chatId ?? _currentChatId;
+
+    if (targetChatId == null || content.trim().isEmpty) {
       _log(
-          'Невозможно отправить сообщение: chatId = $_currentChatId, content пустой');
+          'Невозможно отправить сообщение: chatId = $targetChatId, content пустой');
       return;
     }
 
     try {
-      _log('Отправка сообщения в чат $_currentChatId');
+      _log('Отправка сообщения в чат $targetChatId');
 
-      final message = await _api.sendMessage(_currentChatId!, content);
+      final message = await _api.sendMessage(targetChatId, content);
 
       if (message != null) {
         _log('Сообщение успешно отправлено: ${message.id}');
@@ -228,12 +232,29 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
+  // ИСПРАВЛЕНО: обработка timestamp как String
   void _updateChatLastMessage(Message message) {
     final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
     if (chatIndex != -1) {
+      // Преобразуем String timestamp в DateTime, если необходимо
+      DateTime? messageTime;
+
+      if (message.timestamp is String) {
+        try {
+          messageTime = DateTime.parse(message.timestamp as String);
+        } catch (e) {
+          _log('Ошибка парсинга timestamp: $e');
+          messageTime = DateTime.now();
+        }
+      } else if (message.timestamp is DateTime) {
+        messageTime = message.timestamp as DateTime;
+      } else {
+        messageTime = DateTime.now();
+      }
+
       _chats[chatIndex] = _chats[chatIndex].copyWith(
         lastMessage: message.content,
-        lastMessageTime: message.timestamp,
+        lastMessageTime: messageTime,
       );
 
       _chats.sort((a, b) {
@@ -317,28 +338,23 @@ class ChatProvider extends ChangeNotifier {
     return _messages.where((m) => m.chatId == chatId).toList();
   }
 
+  // ИСПРАВЛЕНО: упрощенная версия для работы с List<String> participants
   String? getTypingUserName(String chatId) {
     if (!isUserTyping(chatId)) return null;
 
     final chat = getChatById(chatId);
-    if (chat == null || chat.participants == null) return null;
+    if (chat == null) return null;
 
-    try {
-      final otherParticipant = chat.participants!.firstWhere(
-        (p) => p.id != _currentUserId,
-      );
-      return otherParticipant.username;
-    } catch (e) {
-      return null;
-    }
+    // Возвращаем упрощенное имя, так как participants - это List<String>, а не List<User>
+    // В реальном приложении здесь нужно получать username через отдельный запрос к API
+    return "Собеседник";
   }
 
-  Future<void> sendTypingStatus(bool isTyping) async {
-    if (_currentChatId == null) return;
-
+  // ИСПРАВЛЕНО: метод принимает параметры chatId и isTyping
+  Future<void> sendTypingStatus(String chatId, bool isTyping) async {
     _wsManager.send({
       'type': isTyping ? 'typing' : 'stopped_typing',
-      'chatId': _currentChatId,
+      'chatId': chatId,
       'userId': _currentUserId,
     });
   }

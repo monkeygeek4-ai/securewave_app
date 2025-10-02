@@ -200,8 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Удалить чат?'),
-        content:
-            Text('Это действие нельзя отменить. Все сообщения будут удалены.'),
+        content: Text('Чат с ${chat.name} будет удален безвозвратно.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -210,13 +209,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              final success =
-                  await context.read<ChatProvider>().deleteChat(chat.id);
 
-              if (!success && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Не удалось удалить чат')),
-                );
+              try {
+                // ИСПРАВЛЕНО: убрали обработку результата deleted
+                await context.read<ChatProvider>().deleteChat(chat.id);
+
+                if (mounted) {
+                  // Если удаленный чат был выбран, сбрасываем выбор
+                  if (_selectedChatId == chat.id) {
+                    setState(() {
+                      _selectedChatId = null;
+                    });
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Чат удален'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Не удалось удалить чат'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: Text('Удалить', style: TextStyle(color: Colors.red)),
@@ -230,69 +251,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width > 600;
 
-    return Stack(
-      children: [
-        // Основной UI
-        Scaffold(
-          drawer: CustomDrawer(),
-          body: isTablet
-              ? Row(
-                  children: [
-                    Container(
-                      width: 350,
-                      child: _buildChatListPanel(hasDrawer: true),
-                    ),
-                    Expanded(
-                      child: _selectedChatId != null
-                          ? Consumer<ChatProvider>(
-                              builder: (context, chatProvider, _) {
-                                final chat =
-                                    chatProvider.getChatById(_selectedChatId!);
-                                if (chat != null) {
-                                  return ChatView(
-                                    chat: chat,
-                                    onBack: () {
-                                      setState(() {
-                                        _selectedChatId = null;
-                                      });
-                                      // Сбрасываем текущий чат
-                                      chatProvider.setCurrentChatId(null);
-                                    },
-                                  );
-                                }
-                                return _buildEmptyChatArea();
-                              },
-                            )
-                          : _buildEmptyChatArea(),
-                    ),
-                  ],
-                )
-              : _buildChatListPanel(hasDrawer: true),
-          floatingActionButton: !isTablet
-              ? FloatingActionButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => NewChatScreen()),
-                    );
-                  },
-                  child: Icon(Icons.edit),
-                  backgroundColor: Color(0xFF2B5CE6),
-                )
-              : null,
-        ),
+    return Scaffold(
+      drawer: isTablet ? null : CustomDrawer(),
+      body: Stack(
+        children: [
+          Row(
+            children: [
+              // Левая панель - список чатов
+              Container(
+                width: isTablet ? 350 : MediaQuery.of(context).size.width,
+                child: _buildChatListPanel(hasDrawer: !isTablet),
+              ),
 
-        // Оверлей входящего звонка
-        if (_incomingCall != null)
-          IncomingCallOverlay(
-            incomingCall: _incomingCall!,
-            onDismiss: () {
-              setState(() {
-                _incomingCall = null;
-              });
-            },
+              // Правая панель - открытый чат (только на планшете)
+              if (isTablet)
+                Expanded(
+                  child: _selectedChatId != null
+                      ? Consumer<ChatProvider>(
+                          builder: (context, chatProvider, _) {
+                            final chat =
+                                chatProvider.getChatById(_selectedChatId!);
+                            if (chat == null) {
+                              return _buildEmptyChatArea();
+                            }
+                            return ChatView(
+                              key: ValueKey(_selectedChatId),
+                              chat: chat,
+                              onBack: () {
+                                setState(() {
+                                  _selectedChatId = null;
+                                });
+                              },
+                            );
+                          },
+                        )
+                      : _buildEmptyChatArea(),
+                ),
+            ],
           ),
-      ],
+
+          // FAB для создания нового чата (только на мобильном)
+          if (!isTablet)
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => NewChatScreen()),
+                  );
+                },
+                child: Icon(Icons.edit),
+                backgroundColor: Color(0xFF2B5CE6),
+              ),
+            ),
+
+          // Оверлей входящего звонка
+          if (_incomingCall != null)
+            IncomingCallOverlay(
+              incomingCall: _incomingCall!,
+              onDismiss: () {
+                setState(() {
+                  _incomingCall = null;
+                });
+              },
+            ),
+        ],
+      ),
+      floatingActionButton: isTablet
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => NewChatScreen()),
+                );
+              },
+              child: Icon(Icons.edit),
+              backgroundColor: Color(0xFF2B5CE6),
+            )
+          : null,
     );
   }
 

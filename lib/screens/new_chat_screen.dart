@@ -66,17 +66,30 @@ class _NewChatScreenState extends State<NewChatScreen> {
     final chatProvider = context.read<ChatProvider>();
 
     try {
+      // Создаем или получаем чат с пользователем
       await chatProvider.createOrGetChat(user.id);
+
+      // Загружаем обновленный список чатов
       await chatProvider.loadChats();
 
+      // Находим созданный чат
       final chat = chatProvider.chats.firstWhere(
-        (c) => c.participants?.any((p) => p.id == user.id) ?? false,
+        (c) => c.participants?.contains(user.id) ?? false,
         orElse: () => chatProvider.chats.first,
       );
 
       if (mounted) {
+        // Закрываем экран создания чата
         Navigator.of(context).pop();
-        // Возвращаемся на главный экран, чат уже будет в списке
+
+        // Чат теперь будет в списке на главном экране
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Чат с ${user.username} создан'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       print('[NewChat] Ошибка создания чата: $e');
