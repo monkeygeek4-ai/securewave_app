@@ -1,8 +1,6 @@
 // lib/services/webrtc_service.dart
 
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../models/call.dart';
 import 'websocket_manager.dart';
@@ -18,37 +16,27 @@ class WebRTCService {
     _initializeStreams();
   }
 
-  // Peer connections
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
-
-  // User info
   String? _currentUserId;
-
-  // Call state
   Call? _currentCall;
 
-  // Stream controllers
   StreamController<Call?>? _callStateController;
   StreamController<MediaStream?>? _localStreamController;
   StreamController<MediaStream?>? _remoteStreamController;
 
-  // Public streams
   Stream<Call?> get callState => _callStateController?.stream ?? Stream.empty();
   Stream<MediaStream?> get localStream =>
       _localStreamController?.stream ?? Stream.empty();
   Stream<MediaStream?> get remoteStream =>
       _remoteStreamController?.stream ?? Stream.empty();
 
-  // WebSocket subscription
   StreamSubscription? _wsSubscription;
 
-  // Ice candidates queue
   final List<RTCIceCandidate> _iceCandidatesQueue = [];
   bool _isRemoteDescriptionSet = false;
 
-  // Configuration
   final Map<String, dynamic> _iceServers = {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
@@ -98,7 +86,6 @@ class WebRTCService {
   Future<void> initialize(String userId) async {
     try {
       _currentUserId = userId;
-
       print('[WebRTC] Инициализация для пользователя: $userId');
 
       if (_callStateController == null || _callStateController!.isClosed) {
@@ -106,7 +93,6 @@ class WebRTCService {
       }
 
       _wsSubscription?.cancel();
-
       _wsSubscription =
           WebSocketManager.instance.messages.listen(_handleWebSocketMessage);
 
@@ -152,7 +138,6 @@ class WebRTCService {
       print('[WebRTC] chatId: $chatId');
       print('[WebRTC] receiverId: $receiverId');
 
-      // Создаем новый звонок
       _currentCall = Call(
         id: callId,
         chatId: chatId,
@@ -167,24 +152,19 @@ class WebRTCService {
 
       _safeAddToCallState(_currentCall);
 
-      // Инициализируем медиа стримы
       await _initializeMediaStreams(callType == 'video');
-
-      // Создаем peer connection
       await _createPeerConnection();
 
-      // Создаем и отправляем offer
       final offer = await _peerConnection!.createOffer(_constraints);
       await _peerConnection!.setLocalDescription(offer);
 
-      // ✅ ИСПРАВЛЕНО: передаем receiverId
       print('[WebRTC] Отправляем offer через WebSocket');
       WebSocketManager.instance.sendCallOffer(
         callId,
         chatId,
         callType,
         offer.toMap(),
-        receiverId, // Добавили этот параметр
+        receiverId,
       );
 
       print('[WebRTC] Offer отправлен');
@@ -230,14 +210,12 @@ class WebRTCService {
 
       _peerConnection = await createPeerConnection(_iceServers);
 
-      // Добавляем локальные треки
       if (_localStream != null) {
         _localStream!.getTracks().forEach((track) {
           _peerConnection!.addTrack(track, _localStream!);
         });
       }
 
-      // Обработчики событий
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
         print('[WebRTC] Новый ICE кандидат');
         if (_currentCall != null) {
@@ -318,7 +296,6 @@ class WebRTCService {
       _safeAddToCallState(_currentCall);
 
       await _initializeMediaStreams(_currentCall!.callType == 'video');
-
       await _createPeerConnection();
 
       final offer = RTCSessionDescription(
@@ -506,36 +483,92 @@ class WebRTCService {
   void _cleanup() {
     print('[WebRTC] Очистка ресурсов');
 
-    _localStream?.getTracks().forEach((track) {
-      track.stop();
-    });
-    _localStream?.dispose();
+    // Очистка локального стрима с обработкой ошибок
+    try {
+      if (_localStream != null) {
+        _localStream!.getTracks().forEach((track) {
+          try {
+            track.stop();
+          } catch (e) {
+            print('[WebRTC] Ошибка остановки трека: $e');
+          }
+        });
+
+        try {
+          _localStream!.dispose();
+        } catch (e) {
+          print('[WebRTC] Ошибка dispose локального stream: $e');
+        }
+      }
+    } catch (e) {
+      print('[WebRTC] Ошибка при очистке локального stream: $e');
+    }
+
     _localStream = null;
     _safeAddToLocalStream(null);
 
+    // Очистка удаленного стрима
     _remoteStream = null;
     _safeAddToRemoteStream(null);
 
-    _peerConnection?.close();
+    // Закрытие peer connection с обработкой ошибок
+    try {
+      if (_peerConnection != null) {
+        _peerConnection!.close();
+      }
+    } catch (e) {
+      print('[WebRTC] Ошибка при закрытии peer connection: $e');
+    }
+
     _peerConnection = null;
 
+    // Очистка очереди и флагов
     _iceCandidatesQueue.clear();
     _isRemoteDescriptionSet = false;
+
+    print('[WebRTC] Очистка завершена');
   }
 
   void dispose() {
-    print('[WebRTC] Dispose');
+    print('[WebRTC] Dispose сервиса');
+
+    // Очищаем ресурсы
     _cleanup();
-    _wsSubscription?.cancel();
 
-    _callStateController?.close();
-    _localStreamController?.close();
-    _remoteStreamController?.close();
+    // Отменяем подписку на WebSocket
+    try {
+      _wsSubscription?.cancel();
+    } catch (e) {
+      print('[WebRTC] Ошибка отмены подписки WebSocket: $e');
+    }
 
+    // Закрываем контроллеры стримов
+    try {
+      _callStateController?.close();
+    } catch (e) {
+      print('[WebRTC] Ошибка закрытия callStateController: $e');
+    }
+
+    try {
+      _localStreamController?.close();
+    } catch (e) {
+      print('[WebRTC] Ошибка закрытия localStreamController: $e');
+    }
+
+    try {
+      _remoteStreamController?.close();
+    } catch (e) {
+      print('[WebRTC] Ошибка закрытия remoteStreamController: $e');
+    }
+
+    // Обнуляем контроллеры
     _callStateController = null;
     _localStreamController = null;
     _remoteStreamController = null;
 
+    // Обнуляем текущий звонок
     _currentCall = null;
+
+    print('[WebRTC] Dispose завершен');
   }
 }
