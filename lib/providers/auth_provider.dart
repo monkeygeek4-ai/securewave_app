@@ -28,36 +28,28 @@ class AuthProvider extends ChangeNotifier {
     try {
       print('[Auth] Вход для пользователя: $username');
 
-      // ВАЖНО: Очищаем старый токен перед входом
       await _api.clearToken();
-
-      // Отключаем старое WebSocket соединение если есть
       _wsManager.disconnect();
 
       final response = await _api.login(username, password);
       print('[Auth] Данные ответа входа: $response');
 
-      // Проверяем успешность входа по полю success или наличию user
       if (response['success'] == true || response['user'] != null) {
         _currentUser = User.fromJson(response['user']);
         _isAuthenticated = true;
 
-        // ВАЖНО: Получаем токен из разных возможных мест в ответе
         String? token = response['token'] ??
             response['access_token'] ??
             response['accessToken'];
 
         if (token != null && token.isNotEmpty) {
           print('[Auth] Подключаем WebSocket после входа');
-
-          // Небольшая задержка перед подключением WebSocket
           await Future.delayed(Duration(milliseconds: 500));
 
           try {
             await _wsManager.connect(token: token);
           } catch (e) {
             print('[Auth] Ошибка подключения WebSocket: $e');
-            // Не прерываем вход из-за ошибки WebSocket
           }
         }
 
@@ -93,13 +85,9 @@ class AuthProvider extends ChangeNotifier {
     try {
       print('[Auth] Регистрация пользователя: $username');
 
-      // Очищаем старый токен перед регистрацией
       await _api.clearToken();
-
-      // Отключаем старое WebSocket соединение если есть
       _wsManager.disconnect();
 
-      // Вызываем метод register с именованными параметрами
       final response = await _api.register(
         username: username,
         password: password,
@@ -109,19 +97,16 @@ class AuthProvider extends ChangeNotifier {
 
       print('[Auth] Ответ регистрации: $response');
 
-      // Проверяем успешность регистрации
       if (response['success'] == true || response['user'] != null) {
         _currentUser = User.fromJson(response['user']);
         _isAuthenticated = true;
 
-        // Получаем токен из ответа
         String? token = response['token'] ??
             response['access_token'] ??
             response['accessToken'];
 
         if (token != null && token.isNotEmpty) {
           print('[Auth] Подключаем WebSocket после регистрации');
-
           await Future.delayed(Duration(milliseconds: 500));
 
           try {
@@ -153,16 +138,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     try {
       print('[Auth] Выход из системы...');
-
-      // Отключаем WebSocket перед выходом
       _wsManager.disconnect();
-
-      // Выполняем logout на сервере
       await _api.logout();
-
-      // ВАЖНО: Очищаем токен из API service
       await _api.clearToken();
-
       print('[Auth] Токен очищен, выход завершен');
     } catch (e) {
       print('[Auth] Ошибка при logout: $e');
@@ -174,15 +152,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ИСПРАВЛЕННЫЙ МЕТОД checkAuthStatus
   Future<void> checkAuthStatus() async {
     try {
       print('[Auth] Проверка статуса авторизации...');
 
-      // Ждем загрузки токена из хранилища
       final hasToken = await _api.waitForToken();
 
-      // Проверяем, есть ли токен после загрузки
       if (!hasToken) {
         print('[Auth] Нет сохраненного токена');
         _isAuthenticated = false;
@@ -193,17 +168,19 @@ class AuthProvider extends ChangeNotifier {
 
       print('[Auth] Токен найден, валидируем на сервере...');
 
-      // ВАЖНО: Проверяем токен на сервере
       try {
         final response = await _api.validateToken();
+
+        print('[Auth] Ответ validateToken: $response');
 
         if (response['valid'] == true && response['user'] != null) {
           _currentUser = User.fromJson(response['user']);
           _isAuthenticated = true;
           print(
               '[Auth] Токен валиден, пользователь: ${_currentUser?.username}');
+          print('[Auth] isAuthenticated = $_isAuthenticated');
+          print('[Auth] currentUser = $_currentUser');
 
-          // Подключаем WebSocket после успешной валидации
           String? token = _api.currentToken;
           if (token != null && token.isNotEmpty) {
             print('[Auth] Подключаем WebSocket после валидации токена');
@@ -216,14 +193,12 @@ class AuthProvider extends ChangeNotifier {
             }
           }
         } else {
-          // Токен невалиден - очищаем
           print('[Auth] Токен невалиден, очищаем');
           await _api.clearToken();
           _isAuthenticated = false;
           _currentUser = null;
         }
       } catch (e) {
-        // Ошибка валидации - очищаем токен
         print('[Auth] Ошибка валидации токена: $e');
         await _api.clearToken();
         _isAuthenticated = false;
@@ -231,6 +206,8 @@ class AuthProvider extends ChangeNotifier {
       }
 
       notifyListeners();
+      print(
+          '[Auth] После notifyListeners: isAuthenticated = $_isAuthenticated');
     } catch (e) {
       print('[Auth] Ошибка проверки статуса авторизации: $e');
       _isAuthenticated = false;

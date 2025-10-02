@@ -22,9 +22,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(
-          create: (_) => ChatProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: MyApp(),
     ),
@@ -48,7 +46,6 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: themeProvider.themeMode,
-          // Оборачиваем в CallOverlayWrapper
           home: CallOverlayWrapper(
             child: InitializationWrapper(),
           ),
@@ -83,15 +80,13 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
 
     print('[CallOverlay] initState - подписываемся на callState');
 
-    // Подписываемся ОДИН РАЗ в initState
     _callSubscription = WebRTCService.instance.callState.listen((call) {
       print('[CallOverlay] Получено обновление звонка: ${call?.status}');
 
       if (!mounted) return;
 
       if (call != null && call.status == CallStatus.incoming) {
-        print(
-            '[CallOverlay] 📞 ПОКАЗЫВАЕМ входящий звонок от ${call.callerName}');
+        print('[CallOverlay] Показываем входящий звонок от ${call.callerName}');
         setState(() {
           _incomingCall = call;
         });
@@ -110,7 +105,6 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   void dispose() {
     print('[CallOverlay] dispose - отменяем подписку');
     _callSubscription?.cancel();
-    // НЕ вызываем WebRTCService.instance.dispose()!
     super.dispose();
   }
 
@@ -119,12 +113,10 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     return Stack(
       children: [
         widget.child,
-
-        // Overlay входящего звонка поверх всего контента
         if (_incomingCall != null)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3), // Затемнение фона
+              color: Colors.black.withOpacity(0.3),
               child: IncomingCallOverlay(
                 incomingCall: _incomingCall!,
                 onDismiss: () {
@@ -158,49 +150,29 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
 
   Future<void> _initialize() async {
     final authProvider = context.read<AuthProvider>();
-    final apiService = ApiService.instance;
 
     print('[Init] Проверяем авторизацию...');
 
-    // Ждем загрузки токена
-    final hasToken = await apiService.waitForToken();
+    // ВАЖНО: Сначала проверяем статус авторизации
+    await authProvider.checkAuthStatus();
 
-    if (hasToken) {
-      print('[Init] Инициализация для авторизованного пользователя');
+    if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+      print(
+          '[Init] Пользователь авторизован: ${authProvider.currentUser!.username}');
 
+      // Инициализируем WebRTC
       try {
-        // Получаем текущего пользователя
-        final user = await apiService.getCurrentUser();
-
-        if (user != null && user.id.isNotEmpty) {
-          print('[Init] Пользователь подтвержден: ${user.username}');
-
-          // Инициализируем WebRTC
-          print('[Init] Инициализация WebRTC для пользователя: ${user.id}');
-
-          try {
-            await WebRTCService.instance.initialize(user.id);
-            print('[Init] ✅ WebRTC успешно инициализирован');
-          } catch (e) {
-            print('[Init] ❌ Ошибка инициализации WebRTC: $e');
-          }
-
-          // Инициализируем ChatProvider
-          final chatProvider = context.read<ChatProvider>();
-          try {
-            // Если у ChatProvider есть метод initialize, вызываем его
-            // В противном случае, просто пропускаем
-            print('[Init] Инициализация ChatProvider');
-            // await chatProvider.initialize(); // Раскомментируйте, если метод существует
-          } catch (e) {
-            print('[Init] ChatProvider initialize не требуется или ошибка: $e');
-          }
-        }
+        await WebRTCService.instance.initialize(authProvider.currentUser!.id);
+        print('[Init] WebRTC успешно инициализирован');
       } catch (e) {
-        print('[Init] Ошибка получения пользователя: $e');
+        print('[Init] Ошибка инициализации WebRTC: $e');
       }
+
+      // Инициализируем ChatProvider
+      final chatProvider = context.read<ChatProvider>();
+      chatProvider.setCurrentUserId(authProvider.currentUser!.id);
     } else {
-      print('[Init] Токен не найден, пользователь не авторизован');
+      print('[Init] Пользователь не авторизован');
     }
 
     setState(() {
@@ -220,6 +192,7 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
 
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
+        // Показываем loading если идет процесс авторизации
         if (authProvider.isLoading) {
           return Scaffold(
             body: Center(
@@ -228,10 +201,12 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
           );
         }
 
-        if (authProvider.isAuthenticated) {
+        // Если авторизован - показываем HomeScreen
+        if (authProvider.isAuthenticated && authProvider.currentUser != null) {
           return HomeScreen();
         }
 
+        // Если не авторизован - показываем LoginScreen
         return LoginScreen();
       },
     );
