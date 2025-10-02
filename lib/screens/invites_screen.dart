@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:intl/intl.dart';
 
 class InvitesScreen extends StatefulWidget {
@@ -20,11 +19,6 @@ class _InvitesScreenState extends State<InvitesScreen> {
   List<dynamic> _invites = [];
   bool _isLoading = true;
   bool _isSending = false;
-
-  final _phoneMask = MaskTextInputFormatter(
-    mask: '+7 (###) ###-##-##',
-    filter: {"#": RegExp(r'[0-9]')},
-  );
 
   @override
   void initState() {
@@ -62,11 +56,13 @@ class _InvitesScreenState extends State<InvitesScreen> {
     setState(() => _isSending = true);
 
     try {
+      // ИСПРАВЛЕНО: добавлен именованный параметр data:
       final response = await _api.post(
-          '/invites/create',
-          phone != null
-              ? {'phone': phone.replaceAll(RegExp(r'[^\d]'), '')}
-              : <String, dynamic>{});
+        '/invites/create',
+        data: phone != null
+            ? {'phone': phone.replaceAll(RegExp(r'[^\d]'), '')}
+            : <String, dynamic>{},
+      );
 
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -113,13 +109,15 @@ class _InvitesScreenState extends State<InvitesScreen> {
 
   Future<void> _deleteInvite(String inviteCode) async {
     try {
-      // ИСПРАВЛЕНО: Используем POST вместо delete
-      final response =
-          await _api.post('/invites/$inviteCode', {'_method': 'DELETE'});
+      // ИСПРАВЛЕНО: используем правильный синтаксис с data:
+      final response = await _api.post(
+        '/invites/$inviteCode',
+        data: {'_method': 'DELETE'},
+      );
 
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Инвайт удален'),
             backgroundColor: Colors.green,
           ),
@@ -147,19 +145,19 @@ class _InvitesScreenState extends State<InvitesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Удалить инвайт?'),
+        title: const Text('Удалить инвайт?'),
         content: Text('Код $inviteCode будет удален безвозвратно.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Отмена'),
+            child: const Text('Отмена'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _deleteInvite(inviteCode);
             },
-            child: Text('Удалить', style: TextStyle(color: Colors.red)),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -170,18 +168,22 @@ class _InvitesScreenState extends State<InvitesScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Отправить инвайт'),
+        title: const Text('Отправить SMS'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Text('Введите номер телефона для отправки инвайта'),
+            const SizedBox(height: 16),
             TextField(
               controller: _phoneController,
-              inputFormatters: [_phoneMask],
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Номер телефона',
+              decoration: InputDecoration(
+                labelText: 'Телефон',
+                prefixIcon: const Icon(Icons.phone),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 hintText: '+7 (XXX) XXX-XX-XX',
-                prefixIcon: Icon(Icons.phone),
               ),
             ),
           ],
@@ -191,18 +193,13 @@ class _InvitesScreenState extends State<InvitesScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Отмена'),
           ),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
-              final phone = _phoneController.text;
-              if (phone.isNotEmpty) {
+              if (_phoneController.text.isNotEmpty) {
                 Navigator.pop(context);
-                _createInvite(phone: phone);
+                _createInvite(phone: _phoneController.text);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-            ),
             child: const Text('Отправить'),
           ),
         ],
@@ -213,8 +210,8 @@ class _InvitesScreenState extends State<InvitesScreen> {
   bool _isExpired(String? expiresAt) {
     if (expiresAt == null) return false;
     try {
-      final expiryDate = DateTime.parse(expiresAt);
-      return expiryDate.isBefore(DateTime.now());
+      final expiry = DateTime.parse(expiresAt);
+      return expiry.isBefore(DateTime.now());
     } catch (e) {
       return false;
     }
@@ -230,89 +227,26 @@ class _InvitesScreenState extends State<InvitesScreen> {
     }
   }
 
-  String _getTimeRemaining(String? expiresAt) {
-    if (expiresAt == null) return '';
-    try {
-      final expiryDate = DateTime.parse(expiresAt);
-      final now = DateTime.now();
-      final difference = expiryDate.difference(now);
-
-      if (difference.isNegative) return 'Истек';
-
-      if (difference.inDays > 0) {
-        return 'Истекает: ${difference.inDays} д. назад';
-      } else if (difference.inHours > 0) {
-        return 'Истекает: ${difference.inHours} ч.';
-      } else if (difference.inMinutes > 0) {
-        return 'Истекает: ${difference.inMinutes} мин.';
-      } else {
-        return 'Истекает: скоро';
-      }
-    } catch (e) {
-      return '';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.width > 600;
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    if (isTablet) {
-      return _buildContent(showAppBar: false, isDarkMode: isDarkMode);
-    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Мои инвайты'),
+        title: const Text('Инвайт-коды'),
         backgroundColor: const Color(0xFF7C3AED),
         foregroundColor: Colors.white,
       ),
-      body: _buildContent(showAppBar: true, isDarkMode: isDarkMode),
-    );
-  }
-
-  Widget _buildContent({required bool showAppBar, required bool isDarkMode}) {
-    return Container(
-      color: isDarkMode ? Color(0xFF1E1E1E) : Colors.grey[50],
-      child: Column(
+      body: Column(
         children: [
-          if (!showAppBar)
-            Container(
-              color: const Color(0xFF7C3AED),
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 16,
-                left: 20,
-                right: 20,
-                bottom: 16,
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Мои инвайты',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.white),
-                    onPressed: _loadInvites,
-                    tooltip: 'Обновить',
-                  ),
-                ],
-              ),
-            ),
           _buildActionButtons(isDarkMode),
           Expanded(
             child: _isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                    color: Color(0xFF7C3AED),
-                  ))
+                      color: Color(0xFF7C3AED),
+                    ),
+                  )
                 : _buildInvitesList(isDarkMode),
           ),
         ],
@@ -324,12 +258,12 @@ class _InvitesScreenState extends State<InvitesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
+        color: isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
             blurRadius: 4,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -402,7 +336,7 @@ class _InvitesScreenState extends State<InvitesScreen> {
     }
 
     return RefreshIndicator(
-      color: Color(0xFF7C3AED),
+      color: const Color(0xFF7C3AED),
       onRefresh: _loadInvites,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -427,7 +361,7 @@ class _InvitesScreenState extends State<InvitesScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
+      color: isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -461,178 +395,99 @@ class _InvitesScreenState extends State<InvitesScreen> {
                                 : Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
-                            letterSpacing: 2,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ),
-                      if (!isUsed && !isExpired) ...[
-                        const SizedBox(width: 8),
+                      const SizedBox(width: 10),
+                      if (!isUsed && !isExpired)
                         IconButton(
                           icon: const Icon(Icons.copy, size: 20),
-                          color: Color(0xFF7C3AED),
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: code));
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Код скопирован'),
                                 duration: Duration(seconds: 1),
-                                backgroundColor: Colors.green,
                               ),
                             );
                           },
-                          tooltip: 'Копировать код',
                         ),
-                      ],
                     ],
                   ),
                 ),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isExpired
-                            ? Colors.red[100]
-                            : isUsed
-                                ? Colors.green[100]
-                                : Colors.orange[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isExpired
-                            ? 'Истек'
-                            : isUsed
-                                ? 'Использован'
-                                : 'Активен',
-                        style: TextStyle(
-                          color: isExpired
-                              ? Colors.red[700]
-                              : isUsed
-                                  ? Colors.green[700]
-                                  : Colors.orange[700],
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    PopupMenuButton(
-                      icon: Icon(
-                        Icons.more_vert,
-                        color: isDarkMode ? Colors.white70 : Colors.grey[700],
-                      ),
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete, color: Colors.red, size: 20),
-                              SizedBox(width: 10),
-                              Text('Удалить'),
-                            ],
-                          ),
-                          onTap: () {
-                            Future.delayed(Duration.zero, () {
-                              _confirmDelete(code);
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                if (!isUsed)
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmDelete(code),
+                  ),
               ],
             ),
-
             const SizedBox(height: 12),
-            Divider(height: 1),
-            const SizedBox(height: 12),
-
-            if (phone != null) ...[
+            if (phone != null)
               Row(
                 children: [
-                  Icon(
-                    Icons.phone,
-                    size: 16,
-                    color: isDarkMode ? Colors.white70 : Colors.grey[600],
-                  ),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.phone, size: 16, color: Colors.grey),
+                  const SizedBox(width: 6),
                   Text(
                     phone,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: isDarkMode ? Colors.white70 : Colors.grey[700],
-                    ),
+                    style: const TextStyle(color: Colors.grey),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-            ],
-
-            Row(
-              children: [
-                Icon(
-                  Icons.access_time,
-                  size: 16,
-                  color: isDarkMode ? Colors.white70 : Colors.grey[600],
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Создан: ${_formatDate(createdAt)}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDarkMode ? Colors.white70 : Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-
-            if (!isUsed && expiresAt != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    isExpired ? Icons.cancel : Icons.schedule,
-                    size: 16,
-                    color: isExpired ? Colors.red : Color(0xFF7C3AED),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _getTimeRemaining(expiresAt),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isExpired ? Colors.red : Color(0xFF7C3AED),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-
-            // ИСПРАВЛЕНО: Заменили Icons.person_check на Icons.check_circle
             if (isUsed && usedBy != null) ...[
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(
-                    Icons.check_circle,
-                    size: 16,
-                    color: Colors.green[600],
-                  ),
-                  const SizedBox(width: 8),
+                  const Icon(Icons.person, size: 16, color: Colors.green),
+                  const SizedBox(width: 6),
                   Text(
-                    'Использован: @$usedBy',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.green[600],
+                    'Использован: $usedBy',
+                    style: const TextStyle(
+                      color: Colors.green,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ],
+            if (isExpired && !isUsed) ...[
+              const SizedBox(height: 8),
+              const Row(
+                children: [
+                  Icon(Icons.timer_off, size: 16, color: Colors.orange),
+                  SizedBox(width: 6),
+                  Text(
+                    'Истек срок действия',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Создан: ${_formatDate(createdAt)}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                if (expiresAt != null)
+                  Text(
+                    'До: ${_formatDate(expiresAt)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+              ],
+            ),
           ],
         ),
       ),

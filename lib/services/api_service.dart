@@ -2,332 +2,140 @@
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
+import '../models/user.dart';
 
 class ApiService {
-  static final ApiService instance = ApiService._internal();
+  static final ApiService _instance = ApiService._internal();
+  factory ApiService() => _instance;
 
-  late Dio _dio;
-  String? _authToken;
-  bool _isInitialized = false;
+  late final Dio _dio;
+  String? _token;
 
   static const bool kIsWeb = bool.fromEnvironment('dart.library.js_util');
 
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'https://securewave.sbk-19.ru/backend/api';
-    }
-    return 'http://10.0.2.2:8080/backend/api';
-  }
-
-  static String get wsUrl {
-    if (kIsWeb) {
-      return 'wss://securewave.sbk-19.ru/ws';
-    }
-    return 'ws://10.0.2.2:8085';
-  }
-
-  void _log(String message) {
-    if (kDebugMode) {
-      print('[API] $message');
-    }
-  }
-
   ApiService._internal() {
-    _log(
-        'Инициализация ApiService. Web: $kIsWeb, BaseURL: $baseUrl, WS: $wsUrl');
-    _initializeDio();
-  }
+    final baseUrl = kIsWeb
+        ? '${Uri.base.origin}/backend/api'
+        : 'https://securewave.sbk-19.ru/backend/api';
 
-  factory ApiService() => instance;
-
-  void _initializeDio() {
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      validateStatus: (status) {
-        return status! < 500;
       },
     ));
 
-    _initializeInterceptors();
-    _loadTokenAsync();
-  }
-
-  void _initializeInterceptors() {
-    _dio.interceptors.clear();
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        if (_authToken == null && !_isInitialized) {
-          await _loadToken();
+      onRequest: (options, handler) {
+        if (_token != null) {
+          options.headers['Authorization'] = 'Bearer $_token';
         }
-
-        if (_authToken != null && _authToken!.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $_authToken';
-          _log('Запрос с токеном: ${options.method} ${options.path}');
-        } else {
-          _log('Запрос без токена: ${options.method} ${options.path}');
-        }
-
+        _log('📤 ${options.method} ${options.path}');
         return handler.next(options);
       },
       onResponse: (response, handler) {
-        _log('Ответ [${response.statusCode}]: ${response.requestOptions.path}');
+        _log('✅ ${response.statusCode} ${response.requestOptions.path}');
         return handler.next(response);
       },
-      onError: (DioException error, handler) {
-        _log(
-            'Ошибка [${error.response?.statusCode}]: ${error.requestOptions.path}');
-        _log('Детали ошибки: ${error.response?.data}');
-
-        if (error.response?.statusCode == 403 ||
-            error.response?.statusCode == 401) {
-          _log('Ошибка авторизации - очищаем токен');
-          clearToken();
-        }
-
+      onError: (error, handler) {
+        _log('❌ Ошибка: ${error.message}');
+        _log('   URL: ${error.requestOptions.path}');
+        _log('   Статус: ${error.response?.statusCode}');
+        _log('   Данные: ${error.response?.data}');
         return handler.next(error);
       },
     ));
   }
 
-  Future<void> _loadTokenAsync() async {
-    await _loadToken();
-  }
-
-  Future<void> _loadToken() async {
-    if (_isInitialized) return;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final tokenValue = prefs.getString('auth_token');
-
-      if (tokenValue != null && tokenValue.isNotEmpty) {
-        if (tokenValue.startsWith('"') && tokenValue.endsWith('"')) {
-          _authToken = tokenValue.substring(1, tokenValue.length - 1);
-          _log('Токен загружен и очищен от кавычек');
-        } else {
-          _authToken = tokenValue;
-          _log('Токен загружен из хранилища');
-        }
-      } else {
-        _log('Токен не найден в хранилище');
-      }
-
-      _isInitialized = true;
-    } catch (e) {
-      _log('Ошибка загрузки токена: $e');
-      _isInitialized = true;
+  void _log(String message) {
+    if (kDebugMode) {
+      print('[ApiService] $message');
     }
   }
 
-  Future<void> _saveToken(String token) async {
-    try {
-      _log('Сохранение токена...');
-
-      if (token.startsWith('"') && token.endsWith('"')) {
-        token = token.substring(1, token.length - 1);
-        _log('Убраны кавычки из токена');
-      }
-
-      _authToken = token;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', token);
-
-      _log('Токен сохранен');
-    } catch (e) {
-      _log('Ошибка сохранения токена: $e');
-    }
+  void setToken(String? token) {
+    _token = token;
+    _log('Токен ${token != null ? "установлен" : "удален"}');
   }
 
-  Future<void> clearToken() async {
-    try {
-      _log('Очистка токена');
-      _authToken = null;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('auth_token');
-
-      _log('Токен очищен');
-    } catch (e) {
-      _log('Ошибка очистки токена: $e');
-    }
-  }
-
-  bool get hasToken => _authToken != null && _authToken!.isNotEmpty;
-  String? get currentToken => _authToken;
-
-  Future<bool> waitForToken(
-      {Duration timeout = const Duration(seconds: 2)}) async {
-    final startTime = DateTime.now();
-
-    while (!_isInitialized) {
-      if (DateTime.now().difference(startTime) > timeout) {
-        _log('Таймаут ожидания загрузки токена');
-        return false;
-      }
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-
-    return hasToken;
-  }
+  String? get token => _token;
 
   // ===== АУТЕНТИФИКАЦИЯ =====
 
-  Future<Map<String, dynamic>> login(String username, String password) async {
+  Future<Map<String, dynamic>?> login(String email, String password) async {
     try {
-      _log('Вход для пользователя: $username');
-
-      await clearToken();
-
       final response = await _dio.post('/auth/login', data: {
-        'username': username,
+        'email': email,
         'password': password,
       });
 
-      _log('Ответ входа: ${response.statusCode}');
-      _log('Данные ответа: ${response.data}');
-
       if (response.statusCode == 200) {
         final data = response.data;
-
-        String? token = data['token'] ??
-            data['access_token'] ??
-            data['accessToken'] ??
-            data['jwt'];
-
-        if (token != null) {
-          await _saveToken(token);
-          _log('Токен получен и сохранен');
-        } else {
-          _log('Внимание: токен не найден в ответе');
-          _log('Ключи ответа: ${data.keys.toList()}');
+        if (data['token'] != null) {
+          setToken(data['token']);
         }
-
         return data;
-      } else if (response.statusCode == 403 || response.statusCode == 401) {
-        throw 'Неверное имя пользователя или пароль';
-      } else {
-        throw 'Ошибка входа: ${response.statusCode}';
       }
-    } on DioException catch (e) {
-      _log('DioException при входе: $e');
-      if (e.response?.statusCode == 403 || e.response?.statusCode == 401) {
-        throw 'Неверное имя пользователя или пароль';
-      }
-      throw 'Ошибка подключения. Попробуйте еще раз.';
+
+      return null;
     } catch (e) {
       _log('Ошибка входа: $e');
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> register({
-    required String username,
-    required String password,
-    required String email,
-    required String fullName,
-  }) async {
+  Future<Map<String, dynamic>?> register(
+      String email, String password, String username) async {
     try {
-      _log('Регистрация пользователя: $username');
-
-      await clearToken();
-
       final response = await _dio.post('/auth/register', data: {
-        'username': username,
-        'password': password,
         'email': email,
-        'fullName': fullName,
+        'password': password,
+        'username': username,
       });
 
-      _log('Ответ регистрации: ${response.statusCode}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
+      if (response.statusCode == 200) {
         final data = response.data;
-
-        String? token = data['token'] ??
-            data['access_token'] ??
-            data['accessToken'] ??
-            data['jwt'];
-
-        if (token != null) {
-          await _saveToken(token);
-          _log('Токен получен и сохранен');
+        if (data['token'] != null) {
+          setToken(data['token']);
         }
-
         return data;
-      } else {
-        throw 'Ошибка регистрации: ${response.statusCode}';
       }
-    } on DioException catch (e) {
-      _log('DioException при регистрации: $e');
-      throw 'Ошибка подключения. Попробуйте еще раз.';
+
+      return null;
     } catch (e) {
       _log('Ошибка регистрации: $e');
       rethrow;
     }
   }
 
-  Future<Map<String, dynamic>> validateToken() async {
+  Future<Map<String, dynamic>?> getCurrentUser() async {
     try {
-      _log('Валидация токена...');
-
-      final response = await _dio.post('/auth/validate');
-
-      _log('Ответ валидации: ${response.statusCode}');
-
-      if (response.statusCode == 200) {
-        return response.data;
-      } else {
-        return {'valid': false, 'error': 'Invalid token'};
-      }
-    } catch (e) {
-      _log('Ошибка валидации токена: $e');
-      return {'valid': false, 'error': e.toString()};
-    }
-  }
-
-  Future<void> logout() async {
-    try {
-      _log('Выход из системы...');
-      await _dio.post('/auth/logout');
-      _log('Logout выполнен на сервере');
-    } catch (e) {
-      _log('Ошибка при logout: $e');
-    }
-  }
-
-  Future<User?> getCurrentUser() async {
-    try {
-      _log('Получение текущего пользователя...');
-
       final response = await _dio.get('/auth/me');
 
       if (response.statusCode == 200) {
-        return User.fromJson(response.data);
+        return response.data;
       }
 
       return null;
     } catch (e) {
-      _log('Ошибка получения пользователя: $e');
+      _log('Ошибка получения текущего пользователя: $e');
       return null;
     }
+  }
+
+  void logout() {
+    setToken(null);
   }
 
   // ===== ЧАТЫ =====
 
   Future<List<Chat>> getChats() async {
     try {
-      final response = await _dio.get('/chats');
+      final response = await _dio.get('/chats/list');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -375,7 +183,9 @@ class ApiService {
 
   Future<List<Message>> getMessages(String chatId) async {
     try {
-      final response = await _dio.get('/messages/chat/$chatId');
+      // ИСПРАВЛЕНО: используем query параметры вместо path
+      final response =
+          await _dio.get('/messages/chat', queryParameters: {'chatId': chatId});
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -384,7 +194,7 @@ class ApiService {
 
       return [];
     } catch (e) {
-      _log('Ошибка получения сообщений: $e');
+      _log('Ошибка получения сообщений для чата $chatId: $e');
       return [];
     }
   }
@@ -409,13 +219,19 @@ class ApiService {
 
   Future<bool> markMessagesAsRead(String chatId) async {
     try {
+      _log('Отметка сообщений как прочитанных для чата: $chatId');
+
       final response = await _dio.post('/messages/mark-read', data: {
         'chatId': chatId,
       });
 
+      _log('Ответ от mark-read: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
       _log('Ошибка отметки сообщений как прочитанных: $e');
+      if (e is DioException) {
+        _log('DioException details: ${e.response?.data}');
+      }
       return false;
     }
   }
@@ -461,49 +277,21 @@ class ApiService {
   Future<dynamic> get(String path,
       {Map<String, dynamic>? queryParameters}) async {
     try {
-      _log('GET запрос: $path');
       final response = await _dio.get(path, queryParameters: queryParameters);
-
-      if (response.statusCode == 200) {
-        return response.data;
-      }
-
-      throw 'Ошибка: ${response.statusCode}';
-    } on DioException catch (e) {
-      _log('DioException при GET: $e');
-      if (e.response != null) {
-        return e.response!.data;
-      }
-      throw 'Ошибка подключения';
+      return response.data;
     } catch (e) {
-      _log('Ошибка GET: $e');
+      _log('Ошибка GET $path: $e');
       rethrow;
     }
   }
 
-  Future<dynamic> post(String path, Map<String, dynamic> data) async {
+  Future<dynamic> post(String path, {Map<String, dynamic>? data}) async {
     try {
-      _log('POST запрос: $path');
       final response = await _dio.post(path, data: data);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return response.data;
-      }
-
-      throw 'Ошибка: ${response.statusCode}';
-    } on DioException catch (e) {
-      _log('DioException при POST: $e');
-      if (e.response != null) {
-        return e.response!.data;
-      }
-      throw 'Ошибка подключения';
+      return response.data;
     } catch (e) {
-      _log('Ошибка POST: $e');
+      _log('Ошибка POST $path: $e');
       rethrow;
     }
-  }
-
-  Future<void> saveToken(String token) async {
-    await _saveToken(token);
   }
 }

@@ -1,54 +1,52 @@
-// lib/models/user.dart (ОБНОВЛЕННАЯ ВЕРСИЯ)
+// lib/models/user.dart
 
 class User {
   final String id;
   final String username;
-  final String? email;
+  final String email;
+  final String? avatarUrl;
   final String? fullName;
   final String? phone;
-  final bool phoneVerified;
   final String? bio;
-  final String? avatar;
-  final bool isOnline;
-  final String? lastSeen;
-  final String? createdAt;
   final String? nickname;
+  final DateTime? createdAt;
+  final DateTime? lastSeen;
+  final bool? isOnline;
 
   User({
     required this.id,
     required this.username,
-    this.email,
+    required this.email,
+    this.avatarUrl,
     this.fullName,
     this.phone,
-    this.phoneVerified = false,
     this.bio,
-    this.avatar,
-    this.isOnline = false,
-    this.lastSeen,
-    this.createdAt,
     this.nickname,
+    this.createdAt,
+    this.lastSeen,
+    this.isOnline,
   });
+
+  // Геттер для совместимости со старым кодом
+  String? get avatar => avatarUrl;
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id']?.toString() ?? '',
       username: json['username'] ?? '',
-      email: json['email'],
-      fullName: json['fullName'] ?? json['full_name'],
+      email: json['email'] ?? '',
+      avatarUrl: json['avatar_url'] ?? json['avatarUrl'] ?? json['avatar'],
+      fullName: json['full_name'] ?? json['fullName'],
       phone: json['phone'],
-      phoneVerified: json['phoneVerified'] == true ||
-          json['phone_verified'] == true ||
-          json['phoneVerified'] == 1 ||
-          json['phone_verified'] == 1,
       bio: json['bio'],
-      avatar: json['avatar'] ?? json['avatar_url'] ?? json['avatarUrl'],
-      isOnline: json['isOnline'] == true ||
-          json['is_online'] == true ||
-          json['isOnline'] == 1 ||
-          json['is_online'] == 1,
-      lastSeen: json['lastSeen'] ?? json['last_seen'],
-      createdAt: json['createdAt'] ?? json['created_at'],
       nickname: json['nickname'],
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
+      lastSeen: json['last_seen'] != null
+          ? DateTime.tryParse(json['last_seen'].toString())
+          : null,
+      isOnline: json['is_online'] ?? json['isOnline'] ?? false,
     );
   }
 
@@ -57,15 +55,14 @@ class User {
       'id': id,
       'username': username,
       'email': email,
-      'fullName': fullName,
+      'avatar_url': avatarUrl,
+      'full_name': fullName,
       'phone': phone,
-      'phoneVerified': phoneVerified,
       'bio': bio,
-      'avatar': avatar,
-      'isOnline': isOnline,
-      'lastSeen': lastSeen,
-      'createdAt': createdAt,
       'nickname': nickname,
+      'created_at': createdAt?.toIso8601String(),
+      'last_seen': lastSeen?.toIso8601String(),
+      'is_online': isOnline,
     };
   }
 
@@ -73,29 +70,27 @@ class User {
     String? id,
     String? username,
     String? email,
+    String? avatarUrl,
     String? fullName,
     String? phone,
-    bool? phoneVerified,
     String? bio,
-    String? avatar,
-    bool? isOnline,
-    String? lastSeen,
-    String? createdAt,
     String? nickname,
+    DateTime? createdAt,
+    DateTime? lastSeen,
+    bool? isOnline,
   }) {
     return User(
       id: id ?? this.id,
       username: username ?? this.username,
       email: email ?? this.email,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,
-      phoneVerified: phoneVerified ?? this.phoneVerified,
       bio: bio ?? this.bio,
-      avatar: avatar ?? this.avatar,
-      isOnline: isOnline ?? this.isOnline,
-      lastSeen: lastSeen ?? this.lastSeen,
-      createdAt: createdAt ?? this.createdAt,
       nickname: nickname ?? this.nickname,
+      createdAt: createdAt ?? this.createdAt,
+      lastSeen: lastSeen ?? this.lastSeen,
+      isOnline: isOnline ?? this.isOnline,
     );
   }
 }

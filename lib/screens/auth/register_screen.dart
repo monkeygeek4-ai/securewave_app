@@ -1,11 +1,15 @@
+// lib/screens/auth/register_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../home_screen.dart';
-import '../auth/login_screen.dart';
+import 'login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
+
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
@@ -18,6 +22,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -36,12 +42,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final authProvider = context.read<AuthProvider>();
 
-    // Вызываем метод register с позиционными параметрами в правильном порядке
+    // ИСПРАВЛЕНО: используем именованные параметры
     final success = await authProvider.register(
-      _usernameController.text.trim(),
-      _passwordController.text,
-      _emailController.text.trim(),
-      _fullNameController.text.trim(),
+      username: _usernameController.text.trim(),
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      fullName: _fullNameController.text.trim(),
     );
 
     if (mounted) {
@@ -54,27 +60,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           chatProvider.setCurrentUserId(authProvider.currentUser!.id);
         }
 
-        // УБИРАЕМ дублирование WebSocket подключения
-        // Оно уже происходит в auth_provider.dart при register()
+        await Future.delayed(const Duration(milliseconds: 500));
 
-        // Даем время на установку WebSocket соединения
-        await Future.delayed(Duration(milliseconds: 500));
-
-        // Загружаем чаты
         try {
           await chatProvider.loadChats();
         } catch (e) {
           print('[Register] Ошибка загрузки чатов: $e');
         }
 
-        // Используем pushReplacement чтобы нельзя было вернуться назад
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => HomeScreen()),
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Registration failed'),
+            content: Text(authProvider.errorMessage ?? 'Ошибка регистрации'),
             backgroundColor: Colors.red,
           ),
         );
@@ -86,7 +86,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -96,108 +96,115 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.all(20),
               child: Card(
                 elevation: 10,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Padding(
-                  padding: EdgeInsets.all(30),
+                  padding: const EdgeInsets.all(30),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          '🚀',
+                        const Text(
+                          '🔐',
                           style: TextStyle(fontSize: 60),
                         ),
-                        SizedBox(height: 10),
-                        Text(
-                          'Создать аккаунт',
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Регистрация',
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF7C3AED),
                           ),
                         ),
-                        SizedBox(height: 30),
+                        const SizedBox(height: 30),
+
+                        // Username
                         TextFormField(
                           controller: _usernameController,
                           decoration: InputDecoration(
                             labelText: 'Имя пользователя',
-                            prefixIcon: Icon(Icons.person),
+                            prefixIcon: const Icon(Icons.person),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Имя пользователя обязательно';
+                              return 'Введите имя пользователя';
                             }
                             if (value.trim().length < 3) {
                               return 'Минимум 3 символа';
                             }
-                            if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
-                              return 'Только буквы, цифры и подчеркивание';
-                            }
                             return null;
                           },
                         ),
-                        SizedBox(height: 15),
+                        const SizedBox(height: 15),
+
+                        // Email
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'Email',
-                            prefixIcon: Icon(Icons.email),
+                            prefixIcon: const Icon(Icons.email),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Email обязателен';
+                              return 'Введите email';
                             }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return 'Введите корректный email';
+                            if (!value.contains('@')) {
+                              return 'Некорректный email';
                             }
                             return null;
                           },
                         ),
-                        SizedBox(height: 15),
+                        const SizedBox(height: 15),
+
+                        // Full Name
                         TextFormField(
                           controller: _fullNameController,
                           decoration: InputDecoration(
-                            labelText: 'Полное имя',
-                            prefixIcon: Icon(Icons.badge),
+                            labelText: 'Полное имя (необязательно)',
+                            prefixIcon: const Icon(Icons.badge),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Полное имя обязательно';
-                            }
-                            return null;
-                          },
                         ),
-                        SizedBox(height: 15),
+                        const SizedBox(height: 15),
+
+                        // Password
                         TextFormField(
                           controller: _passwordController,
-                          obscureText: true,
+                          obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Пароль',
-                            prefixIcon: Icon(Icons.lock),
+                            prefixIcon: const Icon(Icons.lock),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Пароль обязателен';
+                              return 'Введите пароль';
                             }
                             if (value.length < 6) {
                               return 'Минимум 6 символов';
@@ -205,67 +212,86 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
-                        SizedBox(height: 15),
+                        const SizedBox(height: 15),
+
+                        // Confirm Password
                         TextFormField(
                           controller: _confirmPasswordController,
-                          obscureText: true,
+                          obscureText: _obscureConfirmPassword,
                           decoration: InputDecoration(
                             labelText: 'Подтвердите пароль',
-                            prefixIcon: Icon(Icons.lock_outline),
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(_obscureConfirmPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off),
+                              onPressed: () {
+                                setState(() {
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword;
+                                });
+                              },
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Подтвердите пароль';
-                            }
                             if (value != _passwordController.text) {
                               return 'Пароли не совпадают';
                             }
                             return null;
                           },
                         ),
-                        SizedBox(height: 30),
+                        const SizedBox(height: 25),
+
+                        // Register Button
                         SizedBox(
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _register,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF7C3AED),
+                              backgroundColor: const Color(0xFF667EEA),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                             child: _isLoading
-                                ? CircularProgressIndicator(color: Colors.white)
-                                : Text(
-                                    'Создать аккаунт',
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Зарегистрироваться',
                                     style: TextStyle(
-                                        fontSize: 18, color: Colors.white),
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                    ),
                                   ),
                           ),
                         ),
-                        SizedBox(height: 20),
+                        const SizedBox(height: 15),
+
+                        // Login Link
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('Уже есть аккаунт? '),
+                            const Text('Уже есть аккаунт?'),
                             TextButton(
                               onPressed: () {
-                                Navigator.of(context).pushReplacement(
+                                Navigator.pushReplacement(
+                                  context,
                                   MaterialPageRoute(
-                                      builder: (_) => LoginScreen()),
+                                    builder: (_) => LoginScreen(),
+                                  ),
                                 );
                               },
-                              child: Text(
-                                'Войти',
-                                style: TextStyle(
-                                  color: Color(0xFF7C3AED),
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              child: const Text('Войти'),
                             ),
                           ],
                         ),
