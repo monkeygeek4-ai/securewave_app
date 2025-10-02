@@ -80,10 +80,19 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
           _isLoading = false;
         });
 
+        // Определяем тип: звонок или SMS
+        final isCallPassword =
+            response['message']?.toString().contains('звонок') ??
+                response['message']?.toString().contains('Звонок') ??
+                false;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Код отправлен на ${_phoneController.text}'),
+            content: Text(isCallPassword
+                ? 'Вам поступит входящий звонок.\nКод - последние 4 цифры номера звонящего.'
+                : 'Код отправлен на ${_phoneController.text}'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 5),
           ),
         );
       } else {

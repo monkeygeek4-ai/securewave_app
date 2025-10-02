@@ -61,11 +61,11 @@ class _InvitesScreenState extends State<InvitesScreen> {
     setState(() => _isSending = true);
 
     try {
-      final data = phone != null
-          ? {'phone': phone.replaceAll(RegExp(r'[^\d]'), '')}
-          : {};
-
-      final response = await _api.post('/invites/create', data);
+      final response = await _api.post(
+          '/invites/create',
+          phone != null
+              ? {'phone': phone.replaceAll(RegExp(r'[^\d]'), '')}
+              : <String, dynamic>{});
 
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(

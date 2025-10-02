@@ -455,4 +455,55 @@ class ApiService {
       return [];
     }
   }
+
+  // ===== УНИВЕРСАЛЬНЫЕ МЕТОДЫ GET/POST =====
+
+  Future<dynamic> get(String path,
+      {Map<String, dynamic>? queryParameters}) async {
+    try {
+      _log('GET запрос: $path');
+      final response = await _dio.get(path, queryParameters: queryParameters);
+
+      if (response.statusCode == 200) {
+        return response.data;
+      }
+
+      throw 'Ошибка: ${response.statusCode}';
+    } on DioException catch (e) {
+      _log('DioException при GET: $e');
+      if (e.response != null) {
+        return e.response!.data;
+      }
+      throw 'Ошибка подключения';
+    } catch (e) {
+      _log('Ошибка GET: $e');
+      rethrow;
+    }
+  }
+
+  Future<dynamic> post(String path, Map<String, dynamic> data) async {
+    try {
+      _log('POST запрос: $path');
+      final response = await _dio.post(path, data: data);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return response.data;
+      }
+
+      throw 'Ошибка: ${response.statusCode}';
+    } on DioException catch (e) {
+      _log('DioException при POST: $e');
+      if (e.response != null) {
+        return e.response!.data;
+      }
+      throw 'Ошибка подключения';
+    } catch (e) {
+      _log('Ошибка POST: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> saveToken(String token) async {
+    await _saveToken(token);
+  }
 }

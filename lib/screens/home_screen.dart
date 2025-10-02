@@ -7,8 +7,6 @@ import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/webrtc_service.dart';
 import '../models/chat.dart';
-import '../models/call.dart';
-import '../widgets/chat_list_item.dart';
 import 'chat_screen.dart';
 import 'new_chat_screen.dart';
 import 'chat_view.dart';
@@ -24,7 +22,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   Timer? _refreshTimer;
-  Call? _incomingCall;
   StreamSubscription? _callSubscription;
 
   @override
@@ -32,10 +29,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Подписываемся на входящие звонки
     _listenForIncomingCalls();
 
-    // Проверяем наличие чатов после загрузки экрана
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkChats();
       _startPeriodicRefresh();
@@ -56,15 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _listenForIncomingCalls() {
     try {
       _callSubscription = WebRTCService.instance.callState.listen((call) {
-        if (call != null && call.status == CallStatus.incoming) {
-          setState(() {
-            _incomingCall = call;
-          });
-        } else if (call == null || call.status != CallStatus.incoming) {
-          setState(() {
-            _incomingCall = null;
-          });
-        }
+        // Обработка входящих звонков через overlay
       });
     } catch (e) {
       print('[Home] Ошибка подписки на звонки: $e');
@@ -241,13 +228,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       drawer: isTablet ? null : _buildDrawer(),
       body: Row(
         children: [
-          // Левая панель - список чатов
           Container(
             width: isTablet ? 350 : MediaQuery.of(context).size.width,
             child: _buildChatListPanel(hasDrawer: !isTablet),
           ),
-
-          // Правая панель - открытый чат (только на планшете)
           if (isTablet)
             Expanded(
               child: _selectedChatId != null
@@ -257,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         if (chat == null) {
                           return Center(child: Text('Чат не найден'));
                         }
-                        return ChatView(chatId: chat.id);
+                        return ChatView(chat: chat);
                       },
                     )
                   : Center(
@@ -301,7 +285,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildChatListPanel({bool hasDrawer = false}) {
     return Column(
       children: [
-        // Заголовок и поиск
         Container(
           color: Color(0xFF2B5CE6),
           padding: EdgeInsets.only(
@@ -312,7 +295,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           child: Column(
             children: [
-              // Заголовок с меню
               Row(
                 children: [
                   if (hasDrawer)
@@ -346,7 +328,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
               SizedBox(height: 8),
-              // Поиск
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
@@ -368,7 +349,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-        // Список чатов
         Expanded(
           child: Consumer<ChatProvider>(
             builder: (context, chatProvider, _) {
@@ -423,9 +403,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     final chat = filteredChats[index];
                     final isSelected = chat.id == _selectedChatId;
 
-                    return ChatListItem(
-                      chat: chat,
-                      isSelected: isSelected,
+                    return InkWell(
                       onTap: () {
                         final isTablet =
                             MediaQuery.of(context).size.width > 600;
@@ -436,12 +414,99 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ChatScreen(chatId: chat.id),
-                            ),
+                                builder: (_) => ChatScreen(chat: chat)),
                           );
                         }
                       },
                       onLongPress: () => _showChatOptions(chat),
+                      child: Container(
+                        color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundColor: Color(0xFF2B5CE6),
+                              backgroundImage: chat.avatarUrl != null &&
+                                      chat.avatarUrl!.isNotEmpty
+                                  ? NetworkImage(chat.avatarUrl!)
+                                  : null,
+                              child: chat.avatarUrl == null ||
+                                      chat.avatarUrl!.isEmpty
+                                  ? Text(
+                                      chat.name[0].toUpperCase(),
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 20),
+                                    )
+                                  : null,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          chat.name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (chat.lastMessageTime != null)
+                                        Text(
+                                          _formatTime(chat.lastMessageTime!),
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600]),
+                                        ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          chat.lastMessage ?? 'Нет сообщений',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[700]),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (chat.unreadCount > 0)
+                                        Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Color(0xFF2B5CE6),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          child: Text(
+                                            chat.unreadCount.toString(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -472,7 +537,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            // Красивый заголовок с градиентом
             DrawerHeader(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -519,8 +583,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
-
-            // Пункт "Настройки профиля"
             ListTile(
               leading: Icon(Icons.settings, color: Color(0xFF7C3AED)),
               title: Text('Настройки профиля'),
@@ -535,23 +597,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 );
               },
             ),
-
             Divider(),
-
-            // Пункт "Тема"
             ListTile(
               leading: Icon(Icons.brightness_6, color: Colors.grey[700]),
               title: Text('Тема'),
               trailing: Switch(
                 value: Theme.of(context).brightness == Brightness.dark,
-                onChanged: (value) {
-                  // TODO: Переключение темы
-                },
+                onChanged: (value) {},
                 activeColor: Color(0xFF7C3AED),
               ),
             ),
-
-            // Пункт "О приложении"
             ListTile(
               leading: Icon(Icons.info_outline, color: Colors.grey[700]),
               title: Text('О приложении'),
@@ -574,10 +629,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 );
               },
             ),
-
             Divider(),
-
-            // Пункт "Выход"
             ListTile(
               leading: Icon(Icons.exit_to_app, color: Colors.red),
               title: Text(
@@ -617,10 +669,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 }
               },
             ),
-
             SizedBox(height: 20),
-
-            // Версия приложения внизу
             Center(
               child: Padding(
                 padding: EdgeInsets.all(16),
@@ -637,5 +686,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  String _formatTime(dynamic dateTimeStr) {
+    try {
+      DateTime dateTime;
+
+      if (dateTimeStr is DateTime) {
+        dateTime = dateTimeStr;
+      } else if (dateTimeStr is String) {
+        dateTime = DateTime.parse(dateTimeStr);
+      } else {
+        return '';
+      }
+
+      final now = DateTime.now();
+      final difference = now.difference(dateTime);
+
+      if (difference.inDays == 0) {
+        return '${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
+      } else if (difference.inDays == 1) {
+        return 'Вчера';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} дн.';
+      } else {
+        return '${dateTime.day}.${dateTime.month}';
+      }
+    } catch (e) {
+      return '';
+    }
   }
 }

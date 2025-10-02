@@ -2,9 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/user.dart';
 import '../providers/chat_provider.dart';
 import '../services/api_service.dart';
-import '../models/user.dart';
 
 class NewChatScreen extends StatefulWidget {
   @override
@@ -13,9 +13,10 @@ class NewChatScreen extends StatefulWidget {
 
 class _NewChatScreenState extends State<NewChatScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<User> _availableUsers = [];
+  final ApiService _api = ApiService();
+  List<User> _allUsers = [];
   List<User> _filteredUsers = [];
-  bool _isLoading = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -33,10 +34,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final users = await ApiService.instance.getUsers();
-
+      final users = await _api.getUsers();
       setState(() {
-        _availableUsers = users;
+        _allUsers = users;
         _filteredUsers = users;
         _isLoading = false;
       });
@@ -49,9 +49,9 @@ class _NewChatScreenState extends State<NewChatScreen> {
   void _filterUsers(String query) {
     setState(() {
       if (query.isEmpty) {
-        _filteredUsers = _availableUsers;
+        _filteredUsers = _allUsers;
       } else {
-        _filteredUsers = _availableUsers
+        _filteredUsers = _allUsers
             .where((user) =>
                 user.username.toLowerCase().contains(query.toLowerCase()) ||
                 (user.fullName ?? '')
@@ -71,12 +71,6 @@ class _NewChatScreenState extends State<NewChatScreen> {
 
       // Загружаем обновленный список чатов
       await chatProvider.loadChats();
-
-      // Находим созданный чат
-      final chat = chatProvider.chats.firstWhere(
-        (c) => c.participants?.contains(user.id) ?? false,
-        orElse: () => chatProvider.chats.first,
-      );
 
       if (mounted) {
         // Закрываем экран создания чата
@@ -138,13 +132,18 @@ class _NewChatScreenState extends State<NewChatScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.people_outline,
-                                size: 64, color: Colors.grey),
+                            Icon(
+                              Icons.person_search,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
                             SizedBox(height: 16),
                             Text(
                               'Пользователи не найдены',
                               style: TextStyle(
-                                  fontSize: 16, color: Colors.grey[600]),
+                                fontSize: 16,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           ],
                         ),
@@ -155,29 +154,30 @@ class _NewChatScreenState extends State<NewChatScreen> {
                           final user = _filteredUsers[index];
                           return ListTile(
                             leading: CircleAvatar(
+                              radius: 24,
                               backgroundColor: Color(0xFF2B5CE6),
-                              backgroundImage: user.avatarUrl != null
-                                  ? NetworkImage(user.avatarUrl!)
-                                  : null,
-                              child: user.avatarUrl == null
-                                  ? Text(
-                                      user.username[0].toUpperCase(),
-                                      style: TextStyle(color: Colors.white),
-                                    )
+                              backgroundImage:
+                                  user.avatar != null && user.avatar!.isNotEmpty
+                                      ? NetworkImage(user.avatar!)
+                                      : null,
+                              child: user.avatar == null || user.avatar!.isEmpty
+                                  ? Icon(Icons.person,
+                                      size: 30, color: Colors.white)
                                   : null,
                             ),
-                            title: Text(user.username),
-                            subtitle: Text(user.fullName ?? ''),
-                            trailing: user.isOnline
-                                ? Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: Colors.green,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  )
+                            title: Text(
+                              user.username,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            subtitle: user.fullName != null
+                                ? Text(user.fullName!)
                                 : null,
+                            trailing: Icon(
+                              Icons.chat_bubble_outline,
+                              color: Color(0xFF2B5CE6),
+                            ),
                             onTap: () => _startChat(user),
                           );
                         },
