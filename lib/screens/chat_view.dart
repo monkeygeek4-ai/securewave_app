@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/chat.dart';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
+import 'call_screen.dart';
 
 class ChatView extends StatefulWidget {
   final Chat chat;
@@ -66,11 +67,12 @@ class _ChatViewState extends State<ChatView> {
     _messageController.clear();
 
     try {
-      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРАМИ chatId и content
-      await context.read<ChatProvider>().sendMessage(
-            text,
-            chatId: widget.chat.id,
-          );
+      // Устанавливаем текущий чат перед отправкой
+      final chatProvider = context.read<ChatProvider>();
+      chatProvider.setCurrentChatId(widget.chat.id);
+
+      // Отправляем сообщение (chatId берется из _currentChatId)
+      await chatProvider.sendMessage(text);
       _scrollToBottom();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -91,17 +93,58 @@ class _ChatViewState extends State<ChatView> {
       _isTyping = true;
       _lastTypingTime = now;
 
-      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
       context.read<ChatProvider>().sendTypingStatus(widget.chat.id, true);
 
       Future.delayed(Duration(seconds: 3), () {
         if (mounted && _isTyping) {
           _isTyping = false;
-          // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
           context.read<ChatProvider>().sendTypingStatus(widget.chat.id, false);
         }
       });
     }
+  }
+
+  void _startCall(String callType) {
+    // Получаем ID получателя из чата
+    final chatProvider = context.read<ChatProvider>();
+    final chat = widget.chat;
+
+    // Проверяем наличие участников
+    final participants = chat.participants;
+    if (participants == null || participants.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось начать звонок: участники не найдены'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Находим собеседника (не текущего пользователя)
+    // participants - это List<String>, currentUserId - это String
+    final currentUserId = chatProvider.currentUserId;
+    final receiverId = participants.firstWhere(
+      (participantId) => participantId != currentUserId,
+      orElse: () => participants.first,
+    );
+
+    print(
+        '[ChatView] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId');
+
+    // Переходим на экран звонка
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CallScreen(
+          chatId: chat.id,
+          receiverId: receiverId,
+          receiverName: chat.name,
+          receiverAvatar: chat.avatarUrl,
+          callType: callType,
+        ),
+      ),
+    );
   }
 
   @override
@@ -188,6 +231,18 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     ],
                   ),
+                ),
+                // Кнопка аудио звонка
+                IconButton(
+                  icon: Icon(Icons.call),
+                  onPressed: () => _startCall('audio'),
+                  tooltip: 'Аудио звонок',
+                ),
+                // Кнопка видео звонка
+                IconButton(
+                  icon: Icon(Icons.videocam),
+                  onPressed: () => _startCall('video'),
+                  tooltip: 'Видео звонок',
                 ),
                 IconButton(
                   icon: Icon(Icons.search),
