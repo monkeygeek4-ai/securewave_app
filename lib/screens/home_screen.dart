@@ -12,6 +12,7 @@ import 'chat_screen.dart';
 import 'new_chat_screen.dart';
 import 'chat_view.dart';
 import 'profile/profile_settings_screen.dart';
+import 'invites_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _selectedChatId;
   bool _showProfileSettings = false;
+  bool _showInvites = false;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   Timer? _refreshTimer;
@@ -130,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     setState(() {
       _selectedChatId = chatId;
       _showProfileSettings = false;
+      _showInvites = false;
     });
 
     final chatProvider = context.read<ChatProvider>();
@@ -144,6 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() {
         _selectedChatId = null;
         _showProfileSettings = true;
+        _showInvites = false;
       });
       Navigator.pop(context);
     } else {
@@ -151,6 +155,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         context,
         MaterialPageRoute(
           builder: (context) => ProfileSettingsScreen(),
+        ),
+      );
+    }
+  }
+
+  void _openInvites() {
+    final isTablet = MediaQuery.of(context).size.width > 600;
+
+    if (isTablet) {
+      setState(() {
+        _selectedChatId = null;
+        _showProfileSettings = false;
+        _showInvites = true;
+      });
+      Navigator.pop(context);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => InvitesScreen(),
         ),
       );
     }
@@ -245,7 +269,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width > 600;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       drawer: _buildDrawer(),
@@ -259,37 +282,39 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Expanded(
               child: _showProfileSettings
                   ? ProfileSettingsScreen()
-                  : _selectedChatId != null
-                      ? Consumer<ChatProvider>(
-                          builder: (context, chatProvider, _) {
-                            final chat =
-                                chatProvider.getChatById(_selectedChatId!);
-                            if (chat == null) {
-                              return Center(child: Text('Чат не найден'));
-                            }
-                            return ChatView(chat: chat);
-                          },
-                        )
-                      : Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                size: 80,
-                                color: Colors.grey[400],
+                  : _showInvites
+                      ? InvitesScreen()
+                      : _selectedChatId != null
+                          ? Consumer<ChatProvider>(
+                              builder: (context, chatProvider, _) {
+                                final chat =
+                                    chatProvider.getChatById(_selectedChatId!);
+                                if (chat == null) {
+                                  return Center(child: Text('Чат не найден'));
+                                }
+                                return ChatView(chat: chat);
+                              },
+                            )
+                          : Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.chat_bubble_outline,
+                                    size: 80,
+                                    color: Colors.grey[400],
+                                  ),
+                                  SizedBox(height: 20),
+                                  Text(
+                                    'Выберите чат',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: 20),
-                              Text(
-                                'Выберите чат',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                            ),
             ),
         ],
       ),
@@ -301,265 +326,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   MaterialPageRoute(builder: (_) => NewChatScreen()),
                 );
               },
-              child: Icon(Icons.edit),
               backgroundColor: Color(0xFF7C3AED),
+              child: Icon(Icons.add_comment, color: Colors.white),
             )
           : null,
-    );
-  }
-
-  Widget _buildChatListPanel({bool hasDrawer = false}) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      children: [
-        Container(
-          color: Color(0xFF7C3AED),
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top,
-            left: 16,
-            right: 16,
-            bottom: 8,
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Builder(
-                    builder: (context) => IconButton(
-                      icon: Icon(Icons.menu, color: Colors.white),
-                      onPressed: () {
-                        Scaffold.of(context).openDrawer();
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'SecureWave',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.edit, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => NewChatScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              SizedBox(height: 12),
-              TextField(
-                controller: _searchController,
-                onChanged: _searchChats,
-                style: TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Поиск чатов...',
-                  hintStyle: TextStyle(color: Colors.white70),
-                  prefixIcon: Icon(Icons.search, color: Colors.white70),
-                  suffixIcon: _isSearching
-                      ? IconButton(
-                          icon: Icon(Icons.clear, color: Colors.white70),
-                          onPressed: () {
-                            _searchController.clear();
-                            _searchChats('');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.2),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Consumer<ChatProvider>(
-            builder: (context, chatProvider, _) {
-              if (chatProvider.isLoading && chatProvider.chats.isEmpty) {
-                return Center(child: CircularProgressIndicator());
-              }
-
-              final filteredChats = _getFilteredChats(chatProvider.chats);
-
-              if (filteredChats.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _isSearching
-                            ? Icons.search_off
-                            : Icons.chat_bubble_outline,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        _isSearching ? 'Ничего не найдено' : 'Нет чатов',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      if (!_isSearching) ...[
-                        SizedBox(height: 8),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => NewChatScreen(),
-                              ),
-                            );
-                          },
-                          child: Text('Создать новый чат'),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }
-
-              return RefreshIndicator(
-                onRefresh: _refreshChats,
-                child: ListView.builder(
-                  itemCount: filteredChats.length,
-                  itemBuilder: (context, index) {
-                    final chat = filteredChats[index];
-                    final isSelected = chat.id == _selectedChatId;
-
-                    return InkWell(
-                      onTap: () {
-                        final isTablet =
-                            MediaQuery.of(context).size.width > 600;
-
-                        if (isTablet) {
-                          _selectChat(chat.id);
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => ChatScreen(chat: chat)),
-                          );
-                        }
-                      },
-                      onLongPress: () => _showChatOptions(chat),
-                      child: Container(
-                        color: isSelected
-                            ? Color(0xFF7C3AED).withOpacity(0.1)
-                            : null,
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 28,
-                              backgroundColor: Color(0xFF7C3AED),
-                              backgroundImage: chat.avatarUrl != null &&
-                                      chat.avatarUrl!.isNotEmpty
-                                  ? NetworkImage(chat.avatarUrl!)
-                                  : null,
-                              child: chat.avatarUrl == null ||
-                                      chat.avatarUrl!.isEmpty
-                                  ? Icon(Icons.person,
-                                      size: 30, color: Colors.white)
-                                  : null,
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      if (chat.isPinned)
-                                        Padding(
-                                          padding: EdgeInsets.only(right: 4),
-                                          child: Icon(Icons.push_pin,
-                                              size: 14,
-                                              color: Color(0xFF7C3AED)),
-                                        ),
-                                      Expanded(
-                                        child: Text(
-                                          chat.name,
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (chat.lastMessageTime != null)
-                                        Text(
-                                          _formatTime(chat.lastMessageTime!),
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          chat.lastMessage ?? 'Нет сообщений',
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey[700]),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      if (chat.unreadCount > 0)
-                                        Container(
-                                          padding: EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Color(0xFF7C3AED),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: Text(
-                                            chat.unreadCount.toString(),
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -567,24 +337,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final authProvider = context.watch<AuthProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final currentUser = authProvider.currentUser;
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isDarkMode = themeProvider.isDarkMode;
 
     return Drawer(
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: isDarkMode
-                ? [
+          gradient: isDarkMode
+              ? LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
                     Color(0xFF7C3AED).withOpacity(0.2),
                     Color(0xFF1E1E1E),
-                  ]
-                : [
+                  ],
+                )
+              : LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
                     Color(0xFF7C3AED).withOpacity(0.1),
                     Colors.white,
                   ],
-          ),
+                ),
         ),
         child: ListView(
           padding: EdgeInsets.zero,
@@ -650,6 +424,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
               onTap: _openProfileSettings,
+            ),
+            ListTile(
+              leading: Icon(Icons.person_add_alt_1, color: Color(0xFF7C3AED)),
+              title: Text(
+                'Инвайты',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Пригласить пользователей',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              onTap: _openInvites,
             ),
             Divider(),
             ListTile(
@@ -718,24 +508,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        child: Text(
-                          'Выйти',
-                          style: TextStyle(color: Colors.red),
-                        ),
+                        child:
+                            Text('Выйти', style: TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
                 );
 
                 if (confirm == true) {
-                  await context.read<AuthProvider>().logout();
-                  if (mounted) {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/login',
-                      (route) => false,
-                    );
-                  }
+                  authProvider.logout();
+                  Navigator.pushReplacementNamed(context, '/login');
                 }
               },
             ),
@@ -745,18 +527,290 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildChatListPanel({required bool hasDrawer}) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isTablet = MediaQuery.of(context).size.width > 600;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
+        border: isTablet
+            ? Border(
+                right: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.1),
+                ),
+              )
+            : null,
+      ),
+      child: Column(
+        children: [
+          _buildAppBar(hasDrawer: hasDrawer),
+          _buildSearchBar(),
+          Expanded(child: _buildChatList()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar({required bool hasDrawer}) {
+    final isTablet = MediaQuery.of(context).size.width > 600;
+
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 8,
+        left: 8,
+        right: 8,
+        bottom: 8,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+        ),
+      ),
+      child: Row(
+        children: [
+          if (hasDrawer)
+            Builder(
+              builder: (context) => IconButton(
+                icon: Icon(Icons.menu, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              ),
+            ),
+          Expanded(
+            child: Text(
+              'SecureWave',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          if (isTablet)
+            IconButton(
+              icon: Icon(Icons.add_comment, color: Colors.white),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => NewChatScreen()),
+                );
+              },
+              tooltip: 'Новый чат',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: EdgeInsets.all(12),
+      color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
+      child: TextField(
+        controller: _searchController,
+        onChanged: _searchChats,
+        style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+        decoration: InputDecoration(
+          hintText: 'Поиск чатов...',
+          hintStyle:
+              TextStyle(color: isDarkMode ? Colors.white54 : Colors.black54),
+          prefixIcon:
+              Icon(Icons.search, color: isDarkMode ? Colors.white70 : null),
+          filled: true,
+          fillColor: isDarkMode ? Color(0xFF2D2D2D) : Colors.grey[100],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(25),
+            borderSide: BorderSide.none,
+          ),
+          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatList() {
+    return Consumer<ChatProvider>(
+      builder: (context, chatProvider, _) {
+        if (chatProvider.isLoading && chatProvider.chats.isEmpty) {
+          return Center(
+            child: CircularProgressIndicator(color: Color(0xFF7C3AED)),
+          );
+        }
+
+        final filteredChats = _getFilteredChats(chatProvider.chats);
+
+        if (filteredChats.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.chat_bubble_outline,
+                    size: 60, color: Colors.grey[400]),
+                SizedBox(height: 16),
+                Text(
+                  _isSearching ? 'Ничего не найдено' : 'Нет чатов',
+                  style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return RefreshIndicator(
+          onRefresh: _refreshChats,
+          color: Color(0xFF7C3AED),
+          child: ListView.builder(
+            itemCount: filteredChats.length,
+            itemBuilder: (context, index) {
+              final chat = filteredChats[index];
+              return _buildChatTile(chat);
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChatTile(Chat chat) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = _selectedChatId == chat.id;
+    final isTablet = MediaQuery.of(context).size.width > 600;
+
+    return Container(
+      color: isSelected
+          ? (isDarkMode
+              ? Color(0xFF7C3AED).withOpacity(0.2)
+              : Color(0xFF7C3AED).withOpacity(0.1))
+          : null,
+      child: ListTile(
+        leading: Stack(
+          children: [
+            CircleAvatar(
+              radius: 25,
+              backgroundColor: Color(0xFF7C3AED),
+              backgroundImage:
+                  chat.avatarUrl != null ? NetworkImage(chat.avatarUrl!) : null,
+              child: chat.avatarUrl == null
+                  ? Text(
+                      chat.name[0].toUpperCase(),
+                      style: TextStyle(color: Colors.white, fontSize: 20),
+                    )
+                  : null,
+            ),
+            if (chat.unreadCount > 0)
+              Positioned(
+                right: 0,
+                top: 0,
+                child: Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  constraints: BoxConstraints(minWidth: 18, minHeight: 18),
+                  child: Text(
+                    chat.unreadCount > 9 ? '9+' : '${chat.unreadCount}',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        title: Row(
+          children: [
+            if (chat.isPinned)
+              Padding(
+                padding: EdgeInsets.only(right: 6),
+                child: Icon(Icons.push_pin, size: 14, color: Color(0xFF7C3AED)),
+              ),
+            Expanded(
+              child: Text(
+                chat.name,
+                style: TextStyle(
+                  fontWeight: chat.unreadCount > 0
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                  color: isDarkMode ? Colors.white : Colors.black,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        subtitle: Text(
+          chat.lastMessage ?? 'Нет сообщений',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: isDarkMode ? Colors.white70 : Colors.black54,
+            fontWeight:
+                chat.unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (chat.lastMessageTime != null)
+              Text(
+                _formatTime(chat.lastMessageTime!),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: chat.unreadCount > 0
+                      ? Color(0xFF7C3AED)
+                      : (isDarkMode ? Colors.white60 : Colors.black45),
+                  fontWeight: chat.unreadCount > 0
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+            if (!isTablet)
+              IconButton(
+                icon: Icon(Icons.more_vert, size: 18),
+                onPressed: () => _showChatOptions(chat),
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(),
+              ),
+          ],
+        ),
+        onTap: () {
+          if (isTablet) {
+            _selectChat(chat.id);
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(chat: chat),
+              ),
+            ).then((_) => _refreshChats(showIndicator: false));
+          }
+        },
+        onLongPress: () => _showChatOptions(chat),
+      ),
+    );
+  }
+
   String _formatTime(DateTime time) {
     final now = DateTime.now();
-    final difference = now.difference(time);
+    final diff = now.difference(time);
 
-    if (difference.inDays == 0) {
+    if (diff.inDays == 0) {
       return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    } else if (difference.inDays == 1) {
+    } else if (diff.inDays == 1) {
       return 'Вчера';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} д';
+    } else if (diff.inDays < 7) {
+      return '${diff.inDays} дн. назад';
     } else {
-      return '${time.day}.${time.month}';
+      return '${time.day}.${time.month}.${time.year}';
     }
   }
 }

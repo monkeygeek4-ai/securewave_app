@@ -3,14 +3,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'dart:html' as html;
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
+import 'screens/auth/invite_register_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/webrtc_service.dart';
-import 'services/api_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
@@ -77,7 +78,6 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   @override
   void initState() {
     super.initState();
-
     print('[CallOverlay] initState - подписываемся на callState');
 
     _callSubscription = WebRTCService.instance.callState.listen((call) {
@@ -133,7 +133,7 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   }
 }
 
-// Виджет инициализации
+// Инициализация приложения с проверкой инвайт-ссылок
 class InitializationWrapper extends StatefulWidget {
   @override
   _InitializationWrapperState createState() => _InitializationWrapperState();
@@ -141,19 +141,38 @@ class InitializationWrapper extends StatefulWidget {
 
 class _InitializationWrapperState extends State<InitializationWrapper> {
   bool _isInitialized = false;
+  String? _inviteCode;
 
   @override
   void initState() {
     super.initState();
+    _checkInviteLink();
     _initialize();
+  }
+
+  void _checkInviteLink() {
+    try {
+      // Проверяем URL на наличие /invite/CODE
+      final currentUrl = html.window.location.href;
+      print('[Init] Текущий URL: $currentUrl');
+
+      final uri = Uri.parse(currentUrl);
+      print('[Init] Путь: ${uri.path}');
+      print('[Init] Сегменты пути: ${uri.pathSegments}');
+
+      if (uri.pathSegments.isNotEmpty && uri.pathSegments.length >= 2) {
+        if (uri.pathSegments[0] == 'invite') {
+          _inviteCode = uri.pathSegments[1];
+          print('[Init] ✅ Обнаружен инвайт-код: $_inviteCode');
+        }
+      }
+    } catch (e) {
+      print('[Init] Ошибка при проверке URL: $e');
+    }
   }
 
   Future<void> _initialize() async {
     final authProvider = context.read<AuthProvider>();
-
-    print('[Init] Проверяем авторизацию...');
-
-    // ВАЖНО: Сначала проверяем статус авторизации
     await authProvider.checkAuthStatus();
 
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
@@ -168,9 +187,14 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         print('[Init] Ошибка инициализации WebRTC: $e');
       }
 
-      // Инициализируем ChatProvider
       final chatProvider = context.read<ChatProvider>();
       chatProvider.setCurrentUserId(authProvider.currentUser!.id);
+
+      try {
+        await chatProvider.loadChats();
+      } catch (e) {
+        print('[Init] Ошибка загрузки чатов: $e');
+      }
     } else {
       print('[Init] Пользователь не авторизован');
     }
@@ -190,9 +214,13 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
       );
     }
 
+    // Если есть инвайт-код, показываем страницу регистрации
+    if (_inviteCode != null) {
+      return InviteRegisterScreen(inviteCode: _inviteCode);
+    }
+
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        // Показываем loading если идет процесс авторизации
         if (authProvider.isLoading) {
           return Scaffold(
             body: Center(
@@ -201,12 +229,10 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
           );
         }
 
-        // Если авторизован - показываем HomeScreen
         if (authProvider.isAuthenticated && authProvider.currentUser != null) {
           return HomeScreen();
         }
 
-        // Если не авторизован - показываем LoginScreen
         return LoginScreen();
       },
     );

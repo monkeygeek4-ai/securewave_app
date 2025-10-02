@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'dart:html' as html;
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
-import '../invites_screen.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
@@ -209,7 +208,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      color: isDarkMode ? Color(0xFF1E1E1E) : Colors.grey[50],
+      color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.grey[50],
       child: Column(
         children: [
           if (!showAppBar)
@@ -257,8 +256,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                         _buildPersonalInfoSection(),
                         const SizedBox(height: 30),
                         _buildContactSection(),
-                        const SizedBox(height: 30),
-                        _buildInviteSection(),
                         const SizedBox(height: 40),
                         _buildSaveButton(),
                         const SizedBox(height: 20),
@@ -331,7 +328,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
-      color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
+      color: isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -353,7 +350,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
-                fillColor: isDarkMode ? Color(0xFF3D3D3D) : Colors.grey[50],
+                fillColor:
+                    isDarkMode ? const Color(0xFF3D3D3D) : Colors.grey[50],
               ),
               validator: (value) {
                 if (value != null && value.isNotEmpty && value.length < 2) {
@@ -378,13 +376,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
-                fillColor: isDarkMode ? Color(0xFF3D3D3D) : Colors.grey[50],
+                fillColor:
+                    isDarkMode ? const Color(0xFF3D3D3D) : Colors.grey[50],
               ),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
+                if (value == null || value.isEmpty) {
                   return 'Обязательное поле';
                 }
-                if (value.trim().length < 3) {
+                if (value.length < 3) {
                   return 'Минимум 3 символа';
                 }
                 return null;
@@ -407,40 +406,28 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
-                fillColor: isDarkMode ? Color(0xFF3D3D3D) : Colors.grey[50],
+                fillColor:
+                    isDarkMode ? const Color(0xFF3D3D3D) : Colors.grey[50],
               ),
-              validator: (value) {
-                if (value != null && value.isNotEmpty) {
-                  if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
-                    return 'Только латиница, цифры и _';
-                  }
-                  if (value.length < 3) {
-                    return 'Минимум 3 символа';
-                  }
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _bioController,
-              maxLines: 3,
-              maxLength: 200,
               style:
                   TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
+              maxLines: 3,
+              maxLength: 200,
               decoration: InputDecoration(
                 labelText: 'О себе',
                 labelStyle: TextStyle(
                     color: isDarkMode ? Colors.white70 : Colors.black54),
-                hintText: 'Расскажите немного о себе...',
-                hintStyle: TextStyle(
-                    color: isDarkMode ? Colors.white38 : Colors.black38),
                 prefixIcon:
-                    const Icon(Icons.info_outline, color: Color(0xFF7C3AED)),
+                    const Icon(Icons.description, color: Color(0xFF7C3AED)),
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
-                fillColor: isDarkMode ? Color(0xFF3D3D3D) : Colors.grey[50],
+                fillColor:
+                    isDarkMode ? const Color(0xFF3D3D3D) : Colors.grey[50],
               ),
             ),
           ],
@@ -453,7 +440,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Card(
-      color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
+      color: isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -473,55 +460,15 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 labelText: 'Телефон',
                 labelStyle: TextStyle(
                     color: isDarkMode ? Colors.white70 : Colors.black54),
-                hintText: '+7 (999) 999-99-99',
+                hintText: '+7 (999) 123-45-67',
                 hintStyle: TextStyle(
                     color: isDarkMode ? Colors.white38 : Colors.black38),
                 prefixIcon: const Icon(Icons.phone, color: Color(0xFF7C3AED)),
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 filled: true,
-                fillColor: isDarkMode ? Color(0xFF3D3D3D) : Colors.grey[50],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInviteSection() {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return Card(
-      color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSectionTitle('Инвайты'),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => InvitesScreen()),
-                  );
-                },
-                icon: const Icon(Icons.send),
-                label: const Text('Управление инвайтами'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C3AED),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+                fillColor:
+                    isDarkMode ? const Color(0xFF3D3D3D) : Colors.grey[50],
               ),
             ),
           ],
@@ -549,7 +496,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : Color(0xFF7C3AED),
+            color: isDarkMode ? Colors.white : const Color(0xFF7C3AED),
           ),
         ),
       ],
