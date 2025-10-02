@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import '../providers/chat_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/webrtc_service.dart';
 import '../models/chat.dart';
 import 'chat_screen.dart';
@@ -19,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _selectedChatId;
+  bool _showProfileSettings = false;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   Timer? _refreshTimer;
@@ -127,11 +129,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _selectChat(String chatId) {
     setState(() {
       _selectedChatId = chatId;
+      _showProfileSettings = false;
     });
 
     final chatProvider = context.read<ChatProvider>();
     chatProvider.setCurrentChatId(chatId);
     chatProvider.markMessagesAsRead(chatId);
+  }
+
+  void _openProfileSettings() {
+    final isTablet = MediaQuery.of(context).size.width > 600;
+
+    if (isTablet) {
+      setState(() {
+        _selectedChatId = null;
+        _showProfileSettings = true;
+      });
+      Navigator.pop(context);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProfileSettingsScreen(),
+        ),
+      );
+    }
   }
 
   void _showChatOptions(Chat chat) {
@@ -223,47 +245,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.width > 600;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      drawer: isTablet ? null : _buildDrawer(),
+      drawer: _buildDrawer(),
       body: Row(
         children: [
           Container(
             width: isTablet ? 350 : MediaQuery.of(context).size.width,
-            child: _buildChatListPanel(hasDrawer: !isTablet),
+            child: _buildChatListPanel(hasDrawer: true),
           ),
           if (isTablet)
             Expanded(
-              child: _selectedChatId != null
-                  ? Consumer<ChatProvider>(
-                      builder: (context, chatProvider, _) {
-                        final chat = chatProvider.getChatById(_selectedChatId!);
-                        if (chat == null) {
-                          return Center(child: Text('Чат не найден'));
-                        }
-                        return ChatView(chat: chat);
-                      },
-                    )
-                  : Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 80,
-                            color: Colors.grey[400],
+              child: _showProfileSettings
+                  ? ProfileSettingsScreen()
+                  : _selectedChatId != null
+                      ? Consumer<ChatProvider>(
+                          builder: (context, chatProvider, _) {
+                            final chat =
+                                chatProvider.getChatById(_selectedChatId!);
+                            if (chat == null) {
+                              return Center(child: Text('Чат не найден'));
+                            }
+                            return ChatView(chat: chat);
+                          },
+                        )
+                      : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 80,
+                                color: Colors.grey[400],
+                              ),
+                              SizedBox(height: 20),
+                              Text(
+                                'Выберите чат',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(height: 20),
-                          Text(
-                            'Выберите чат',
-                            style: TextStyle(
-                              fontSize: 20,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
             ),
         ],
       ),
@@ -276,17 +302,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 );
               },
               child: Icon(Icons.edit),
-              backgroundColor: Color(0xFF2B5CE6),
+              backgroundColor: Color(0xFF7C3AED),
             )
           : null,
     );
   }
 
   Widget _buildChatListPanel({bool hasDrawer = false}) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
         Container(
-          color: Color(0xFF2B5CE6),
+          color: Color(0xFF7C3AED),
           padding: EdgeInsets.only(
             top: MediaQuery.of(context).padding.top,
             left: 16,
@@ -297,15 +325,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             children: [
               Row(
                 children: [
-                  if (hasDrawer)
-                    Builder(
-                      builder: (context) => IconButton(
-                        icon: Icon(Icons.menu, color: Colors.white),
-                        onPressed: () {
-                          Scaffold.of(context).openDrawer();
-                        },
-                      ),
+                  Builder(
+                    builder: (context) => IconButton(
+                      icon: Icon(Icons.menu, color: Colors.white),
+                      onPressed: () {
+                        Scaffold.of(context).openDrawer();
+                      },
                     ),
+                  ),
                   Expanded(
                     child: Text(
                       'SecureWave',
@@ -327,23 +354,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ],
               ),
-              SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _searchChats,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Поиск чатов...',
-                    hintStyle: TextStyle(color: Colors.white70),
-                    prefixIcon: Icon(Icons.search, color: Colors.white70),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
+              SizedBox(height: 12),
+              TextField(
+                controller: _searchController,
+                onChanged: _searchChats,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Поиск чатов...',
+                  hintStyle: TextStyle(color: Colors.white70),
+                  prefixIcon: Icon(Icons.search, color: Colors.white70),
+                  suffixIcon: _isSearching
+                      ? IconButton(
+                          icon: Icon(Icons.clear, color: Colors.white70),
+                          onPressed: () {
+                            _searchController.clear();
+                            _searchChats('');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.2),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(30),
+                    borderSide: BorderSide.none,
                   ),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
               ),
             ],
@@ -364,7 +400,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.chat_bubble_outline,
+                        _isSearching
+                            ? Icons.search_off
+                            : Icons.chat_bubble_outline,
                         size: 64,
                         color: Colors.grey[400],
                       ),
@@ -420,25 +458,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       },
                       onLongPress: () => _showChatOptions(chat),
                       child: Container(
-                        color: isSelected ? Colors.blue.withOpacity(0.1) : null,
+                        color: isSelected
+                            ? Color(0xFF7C3AED).withOpacity(0.1)
+                            : null,
                         padding:
                             EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundColor: Color(0xFF2B5CE6),
+                              backgroundColor: Color(0xFF7C3AED),
                               backgroundImage: chat.avatarUrl != null &&
                                       chat.avatarUrl!.isNotEmpty
                                   ? NetworkImage(chat.avatarUrl!)
                                   : null,
                               child: chat.avatarUrl == null ||
                                       chat.avatarUrl!.isEmpty
-                                  ? Text(
-                                      chat.name[0].toUpperCase(),
-                                      style: TextStyle(
-                                          color: Colors.white, fontSize: 20),
-                                    )
+                                  ? Icon(Icons.person,
+                                      size: 30, color: Colors.white)
                                   : null,
                             ),
                             SizedBox(width: 12),
@@ -448,12 +485,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 children: [
                                   Row(
                                     children: [
+                                      if (chat.isPinned)
+                                        Padding(
+                                          padding: EdgeInsets.only(right: 4),
+                                          child: Icon(Icons.push_pin,
+                                              size: 14,
+                                              color: Color(0xFF7C3AED)),
+                                        ),
                                       Expanded(
                                         child: Text(
                                           chat.name,
                                           style: TextStyle(
-                                            fontWeight: FontWeight.bold,
                                             fontSize: 16,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -463,8 +507,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                         Text(
                                           _formatTime(chat.lastMessageTime!),
                                           style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[600]),
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
                                         ),
                                     ],
                                   ),
@@ -486,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           padding: EdgeInsets.symmetric(
                                               horizontal: 8, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: Color(0xFF2B5CE6),
+                                            color: Color(0xFF7C3AED),
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                           ),
@@ -520,7 +565,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildDrawer() {
     final authProvider = context.watch<AuthProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final currentUser = authProvider.currentUser;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Drawer(
       child: Container(
@@ -528,10 +575,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF7C3AED).withOpacity(0.1),
-              Colors.white,
-            ],
+            colors: isDarkMode
+                ? [
+                    Color(0xFF7C3AED).withOpacity(0.2),
+                    Color(0xFF1E1E1E),
+                  ]
+                : [
+                    Color(0xFF7C3AED).withOpacity(0.1),
+                    Colors.white,
+                  ],
           ),
         ),
         child: ListView(
@@ -585,31 +637,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             ListTile(
               leading: Icon(Icons.settings, color: Color(0xFF7C3AED)),
-              title: Text('Настройки профиля'),
-              subtitle: Text('Редактировать данные и фото'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ProfileSettingsScreen(),
-                  ),
-                );
-              },
+              title: Text(
+                'Настройки профиля',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              subtitle: Text(
+                'Редактировать данные и фото',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              onTap: _openProfileSettings,
             ),
             Divider(),
             ListTile(
-              leading: Icon(Icons.brightness_6, color: Colors.grey[700]),
-              title: Text('Тема'),
+              leading: Icon(
+                isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                color: Color(0xFF7C3AED),
+              ),
+              title: Text(
+                'Тема',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
               trailing: Switch(
-                value: Theme.of(context).brightness == Brightness.dark,
-                onChanged: (value) {},
+                value: isDarkMode,
+                onChanged: (value) {
+                  themeProvider.toggleTheme();
+                },
                 activeColor: Color(0xFF7C3AED),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.info_outline, color: Colors.grey[700]),
-              title: Text('О приложении'),
+              leading: Icon(Icons.info_outline, color: Color(0xFF7C3AED)),
+              title: Text(
+                'О приложении',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 showAboutDialog(
@@ -647,21 +716,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         onPressed: () => Navigator.pop(context, false),
                         child: Text('Отмена'),
                       ),
-                      ElevatedButton(
+                      TextButton(
                         onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
+                        child: Text(
+                          'Выйти',
+                          style: TextStyle(color: Colors.red),
                         ),
-                        child: Text('Выйти'),
                       ),
                     ],
                   ),
                 );
 
                 if (confirm == true) {
-                  await authProvider.logout();
-                  if (context.mounted) {
-                    Navigator.of(context).pushNamedAndRemoveUntil(
+                  await context.read<AuthProvider>().logout();
+                  if (mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
                       '/login',
                       (route) => false,
                     );
@@ -669,51 +739,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 }
               },
             ),
-            SizedBox(height: 20),
-            Center(
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Text(
-                  'SecureWave v1.0.0',
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  String _formatTime(dynamic dateTimeStr) {
-    try {
-      DateTime dateTime;
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
 
-      if (dateTimeStr is DateTime) {
-        dateTime = dateTimeStr;
-      } else if (dateTimeStr is String) {
-        dateTime = DateTime.parse(dateTimeStr);
-      } else {
-        return '';
-      }
-
-      final now = DateTime.now();
-      final difference = now.difference(dateTime);
-
-      if (difference.inDays == 0) {
-        return '${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-      } else if (difference.inDays == 1) {
-        return 'Вчера';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} дн.';
-      } else {
-        return '${dateTime.day}.${dateTime.month}';
-      }
-    } catch (e) {
-      return '';
+    if (difference.inDays == 0) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Вчера';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} д';
+    } else {
+      return '${time.day}.${time.month}';
     }
   }
 }
