@@ -1,11 +1,13 @@
 // lib/screens/auth/invite_register_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../services/api_service.dart';
 import '../home_screen.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 class InviteRegisterScreen extends StatefulWidget {
   final String? inviteCode;
@@ -29,10 +31,16 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
 
   final _api = ApiService();
 
-  int _currentStep = 0;
+  int _currentStep = 0; // 0: phone, 1: code, 2: registration
   bool _isLoading = false;
   String? _errorMessage;
   String? _verifiedInviteCode;
+
+  // Маска для телефона: +7 (XXX) XXX-XX-XX
+  final _phoneMask = MaskTextInputFormatter(
+    mask: '+7 (###) ###-##-##',
+    filter: {"#": RegExp(r'[0-9]')},
+  );
 
   @override
   void initState() {
@@ -63,6 +71,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
     });
 
     try {
+      // 2 позиционных аргумента: path, data
       final response = await _api.post('/auth/send-code', {
         'phone': _getCleanPhone(),
         'inviteCode': _verifiedInviteCode,
@@ -74,10 +83,19 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
           _isLoading = false;
         });
 
+        // Определяем тип: звонок или SMS
+        final isCallPassword =
+            response['message']?.toString().contains('звонок') ??
+                response['message']?.toString().contains('Звонок') ??
+                false;
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Код отправлен'),
+            content: Text(isCallPassword
+                ? 'Вам поступит входящий звонок.\nКод - последние 4 цифры номера звонящего.'
+                : 'Код отправлен на ${_phoneController.text}'),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5),
           ),
         );
       } else {
@@ -105,15 +123,22 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
     try {
       final response = await _api.post('/auth/verify-code', {
         'phone': _getCleanPhone(),
-        'code': _codeController.text.trim(),
-        'inviteCode': _verifiedInviteCode,
+        'code': _codeController.text,
       });
 
       if (response['success'] == true) {
         setState(() {
           _currentStep = 2;
           _isLoading = false;
+          _verifiedInviteCode = response['inviteCode'];
         });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Телефон подтвержден!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
         setState(() {
           _errorMessage = response['error'] ?? 'Неверный код';
@@ -139,26 +164,30 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
     try {
       final response = await _api.post('/auth/invite-register', {
         'phone': _getCleanPhone(),
+        'code': _codeController.text,
         'username': _usernameController.text.trim(),
         'password': _passwordController.text,
         'fullName': _fullNameController.text.trim(),
         'inviteCode': _verifiedInviteCode,
       });
 
-      if (response['success'] == true && response['token'] != null) {
-        _api.setToken(response['token']);
-
+      if (response['success'] == true && response['user'] != null) {
         final authProvider = context.read<AuthProvider>();
 
+        // Сохраняем токен используя saveToken (асинхронный)
+        if (response['token'] != null) {
+          await _api.saveToken(response['token']);
+        }
+
+        // Обновляем состояние в провайдере
         authProvider.setAuthenticated(
-          response['user']['id'].toString(),
-          response['user']['username'],
-          response['user']['email'],
+          response['user'],
           response['token'],
         );
 
+        // Обновляем ChatProvider
         final chatProvider = context.read<ChatProvider>();
-        chatProvider.setCurrentUserId(response['user']['id'].toString());
+        chatProvider.setCurrentUserId(response['user']['id']?.toString() ?? '');
 
         await Future.delayed(const Duration(milliseconds: 500));
 
@@ -193,8 +222,8 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
           ),
         ),
@@ -202,90 +231,25 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 450),
-                child: Card(
-                  elevation: 10,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Иконка и заголовок
-                        const Icon(
-                          Icons.phone_android,
-                          size: 60,
-                          color: Color(0xFF7C3AED),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Регистрация',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Индикатор шагов
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildStepIndicator(0, 'Телефон'),
-                            _buildStepConnector(),
-                            _buildStepIndicator(1, 'Код'),
-                            _buildStepConnector(),
-                            _buildStepIndicator(2, 'Данные'),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Сообщение об ошибке
-                        if (_errorMessage != null)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            margin: const EdgeInsets.only(bottom: 16),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.error,
-                                    color: Colors.red, size: 20),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _errorMessage!,
-                                    style: const TextStyle(
-                                        color: Colors.red, fontSize: 13),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                        // Контент шагов
-                        if (_currentStep == 0) _buildPhoneStep(),
-                        if (_currentStep == 1) _buildCodeStep(),
-                        if (_currentStep == 2) _buildRegistrationStep(),
-
-                        const SizedBox(height: 16),
-
-                        // Кнопка "К входу"
-                        TextButton.icon(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.arrow_back, size: 18),
-                          label: const Text('К входу'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF7C3AED),
-                          ),
-                        ),
-                      ],
-                    ),
+              child: Card(
+                elevation: 10,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(30),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 30),
+                      _buildStepIndicator(),
+                      const SizedBox(height: 30),
+                      if (_errorMessage != null) _buildErrorMessage(),
+                      _buildCurrentStep(),
+                      const SizedBox(height: 20),
+                      _buildBackButton(),
+                    ],
                   ),
                 ),
               ),
@@ -296,52 +260,135 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
     );
   }
 
-  Widget _buildStepIndicator(int step, String label) {
-    final isActive = _currentStep == step;
-    final isCompleted = _currentStep > step;
+  Widget _buildHeader() {
+    String emoji = '📱';
+    String title = 'Регистрация';
+
+    if (_currentStep == 1) {
+      emoji = '🔐';
+      title = 'Подтверждение';
+    } else if (_currentStep == 2) {
+      emoji = '👤';
+      title = 'Создание аккаунта';
+    }
 
     return Column(
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: isCompleted || isActive
-                ? const Color(0xFF7C3AED)
-                : Colors.grey[300],
-            shape: BoxShape.circle,
-          ),
-          child: Center(
-            child: Text(
-              '${step + 1}',
-              style: TextStyle(
-                color:
-                    isCompleted || isActive ? Colors.white : Colors.grey[600],
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
+        Text(emoji, style: const TextStyle(fontSize: 60)),
+        const SizedBox(height: 10),
         Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: isActive ? const Color(0xFF7C3AED) : Colors.grey[600],
+          title,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF7C3AED),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStepConnector() {
+  Widget _buildStepIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildStepDot(0, 'Телефон'),
+        _buildStepLine(0),
+        _buildStepDot(1, 'Код'),
+        _buildStepLine(1),
+        _buildStepDot(2, 'Данные'),
+      ],
+    );
+  }
+
+  Widget _buildStepDot(int step, String label) {
+    final isActive = step == _currentStep;
+    final isCompleted = step < _currentStep;
+
+    return Column(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isCompleted
+                ? Colors.green
+                : isActive
+                    ? const Color(0xFF7C3AED)
+                    : Colors.grey[300],
+          ),
+          child: Center(
+            child: isCompleted
+                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                : Text(
+                    '${step + 1}',
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.grey[600],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isActive ? const Color(0xFF7C3AED) : Colors.grey[600],
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepLine(int step) {
+    final isCompleted = step < _currentStep;
+
     return Container(
       width: 40,
       height: 2,
-      margin: const EdgeInsets.only(bottom: 18),
-      color: Colors.grey[300],
+      margin: const EdgeInsets.only(bottom: 20),
+      color: isCompleted ? Colors.green : Colors.grey[300],
     );
+  }
+
+  Widget _buildErrorMessage() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[700]),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.red[700]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentStep() {
+    switch (_currentStep) {
+      case 0:
+        return _buildPhoneStep();
+      case 1:
+        return _buildCodeStep();
+      case 2:
+        return _buildRegistrationStep();
+      default:
+        return Container();
+    }
   }
 
   Widget _buildPhoneStep() {
@@ -351,11 +398,12 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
         children: [
           TextFormField(
             controller: _phoneController,
+            inputFormatters: [_phoneMask],
             keyboardType: TextInputType.phone,
             decoration: InputDecoration(
               labelText: 'Номер телефона',
               hintText: '+7 (XXX) XXX-XX-XX',
-              prefixIcon: const Icon(Icons.phone, color: Color(0xFF7C3AED)),
+              prefixIcon: const Icon(Icons.phone),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -364,13 +412,17 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
               if (value == null || value.isEmpty) {
                 return 'Введите номер телефона';
               }
+              final clean = _getCleanPhone();
+              if (clean.length != 11) {
+                return 'Введите корректный номер';
+              }
               return null;
             },
           ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 50,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _sendCode,
               style: ElevatedButton.styleFrom(
@@ -404,17 +456,29 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
       key: _codeFormKey,
       child: Column(
         children: [
-          const Text(
+          Text(
             'Введите код из SMS',
-            style: TextStyle(fontSize: 14, color: Colors.grey),
+            style: TextStyle(fontSize: 16, color: Colors.grey[700]),
           ),
-          const SizedBox(height: 16),
+          Text(
+            _phoneController.text,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF7C3AED),
+            ),
+          ),
+          const SizedBox(height: 20),
           TextFormField(
             controller: _codeController,
             keyboardType: TextInputType.number,
             maxLength: 6,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, letterSpacing: 8),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 8,
+            ),
             decoration: InputDecoration(
               hintText: '000000',
               counterText: '',
@@ -422,12 +486,10 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Введите код';
-              }
-              if (value.length != 6) {
-                return 'Код должен содержать 6 цифр';
+              if (value == null || value.length != 6) {
+                return 'Введите 6-значный код';
               }
               return null;
             },
@@ -435,7 +497,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 50,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _verifyCode,
               style: ElevatedButton.styleFrom(
@@ -459,7 +521,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
                     ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           TextButton(
             onPressed: _isLoading ? null : _sendCode,
             child: const Text('Отправить код повторно'),
@@ -478,7 +540,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
             controller: _usernameController,
             decoration: InputDecoration(
               labelText: 'Имя пользователя',
-              prefixIcon: const Icon(Icons.person, color: Color(0xFF7C3AED)),
+              prefixIcon: const Icon(Icons.person),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -490,15 +552,18 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
               if (value.trim().length < 3) {
                 return 'Минимум 3 символа';
               }
+              if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(value)) {
+                return 'Только буквы, цифры и _';
+              }
               return null;
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           TextFormField(
             controller: _fullNameController,
             decoration: InputDecoration(
               labelText: 'Полное имя',
-              prefixIcon: const Icon(Icons.badge, color: Color(0xFF7C3AED)),
+              prefixIcon: const Icon(Icons.badge),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -510,13 +575,13 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 15),
           TextFormField(
             controller: _passwordController,
             obscureText: true,
             decoration: InputDecoration(
               labelText: 'Пароль',
-              prefixIcon: const Icon(Icons.lock, color: Color(0xFF7C3AED)),
+              prefixIcon: const Icon(Icons.lock),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -534,7 +599,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 50,
             child: ElevatedButton(
               onPressed: _isLoading ? null : _completeRegistration,
               style: ElevatedButton.styleFrom(
@@ -553,13 +618,30 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
                       ),
                     )
                   : const Text(
-                      'Завершить регистрацию',
+                      'Создать аккаунт',
                       style: TextStyle(fontSize: 16, color: Colors.white),
                     ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBackButton() {
+    return TextButton.icon(
+      onPressed: () {
+        if (_currentStep > 0) {
+          setState(() {
+            _currentStep--;
+            _errorMessage = null;
+          });
+        } else {
+          Navigator.of(context).pop();
+        }
+      },
+      icon: const Icon(Icons.arrow_back),
+      label: Text(_currentStep > 0 ? 'Назад' : 'К входу'),
     );
   }
 }
