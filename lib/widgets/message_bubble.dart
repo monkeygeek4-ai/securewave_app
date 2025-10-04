@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../models/message.dart';
+import '../utils/app_colors.dart';
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -28,18 +29,17 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // Аватар для входящих сообщений
             if (!isMe)
               Padding(
                 padding: EdgeInsets.only(right: 8, bottom: 4),
                 child: Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                    ),
+                    gradient: AppColors.primaryGradient,
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0xFF7C3AED).withOpacity(0.3),
+                        color: AppColors.primaryPurple.withOpacity(0.3),
                         blurRadius: 4,
                         spreadRadius: 1,
                       ),
@@ -49,7 +49,9 @@ class MessageBubble extends StatelessWidget {
                     radius: 16,
                     backgroundColor: Colors.transparent,
                     child: Text(
-                      'U',
+                      message.senderName?.isNotEmpty == true
+                          ? message.senderName![0].toUpperCase()
+                          : 'U',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -59,20 +61,13 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
+            // Пузырь сообщения
             Flexible(
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: isMe
-                      ? LinearGradient(
-                          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: !isMe
-                      ? (isDarkMode ? Color(0xFF2D2D2D) : Colors.white)
-                      : null,
+                  gradient: isMe ? AppColors.primaryGradient : null,
+                  color: !isMe ? AppColors.getCardColor(context) : null,
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
@@ -81,18 +76,13 @@ class MessageBubble extends StatelessWidget {
                         isMe ? Radius.circular(4) : Radius.circular(20),
                   ),
                   boxShadow: [
-                    BoxShadow(
-                      color: isMe
-                          ? Color(0xFF7C3AED).withOpacity(0.4)
-                          : Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
+                    isMe ? AppColors.messageShadow : AppColors.cardShadow,
                   ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Имя отправителя для групповых чатов
                     if (!isMe && message.senderName != null)
                       Padding(
                         padding: EdgeInsets.only(bottom: 4),
@@ -101,17 +91,18 @@ class MessageBubble extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF7C3AED),
+                            color: AppColors.primaryPurple,
                           ),
                         ),
                       ),
+                    // Контент сообщения
                     if (message.type == 'text')
                       Text(
                         message.content,
                         style: TextStyle(
                           color: isMe
                               ? Colors.white
-                              : (isDarkMode ? Colors.white : Colors.black87),
+                              : AppColors.getTextColor(context),
                           fontSize: 15,
                           height: 1.4,
                         ),
@@ -130,8 +121,8 @@ class MessageBubble extends StatelessWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  Color(0xFF667EEA).withOpacity(0.3),
-                                  Color(0xFF764BA2).withOpacity(0.3)
+                                  AppColors.gradientStart.withOpacity(0.3),
+                                  AppColors.gradientEnd.withOpacity(0.3),
                                 ],
                               ),
                               borderRadius: BorderRadius.circular(12),
@@ -150,7 +141,7 @@ class MessageBubble extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: isMe
                               ? Colors.white.withOpacity(0.2)
-                              : Color(0xFF7C3AED).withOpacity(0.1),
+                              : AppColors.primaryPurple.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
@@ -159,13 +150,16 @@ class MessageBubble extends StatelessWidget {
                             Icon(
                               Icons.attach_file,
                               size: 18,
-                              color: isMe ? Colors.white : Color(0xFF7C3AED),
+                              color:
+                                  isMe ? Colors.white : AppColors.primaryPurple,
                             ),
                             SizedBox(width: 6),
                             Text(
                               'Файл',
                               style: TextStyle(
-                                color: isMe ? Colors.white : Color(0xFF7C3AED),
+                                color: isMe
+                                    ? Colors.white
+                                    : AppColors.primaryPurple,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -173,6 +167,7 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
                     SizedBox(height: 4),
+                    // Время и статус
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -187,7 +182,7 @@ class MessageBubble extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: isMe
                                     ? Colors.white.withOpacity(0.2)
-                                    : Color(0xFF7C3AED).withOpacity(0.1),
+                                    : AppColors.primaryPurple.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
@@ -196,7 +191,7 @@ class MessageBubble extends StatelessWidget {
                                   fontSize: 10,
                                   color: isMe
                                       ? Colors.white.withOpacity(0.8)
-                                      : Color(0xFF7C3AED),
+                                      : AppColors.primaryPurple,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -208,9 +203,7 @@ class MessageBubble extends StatelessWidget {
                             fontSize: 11,
                             color: isMe
                                 ? Colors.white.withOpacity(0.9)
-                                : (isDarkMode
-                                    ? Colors.white60
-                                    : Colors.black54),
+                                : AppColors.getSecondaryTextColor(context),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -220,7 +213,7 @@ class MessageBubble extends StatelessWidget {
                             message.isRead ? Icons.done_all : Icons.done,
                             size: 16,
                             color: message.isRead
-                                ? Color(0xFF00E676)
+                                ? AppColors.online
                                 : Colors.white.withOpacity(0.7),
                           ),
                         ],

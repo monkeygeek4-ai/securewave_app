@@ -10,6 +10,7 @@ import '../services/webrtc_service.dart';
 import '../models/chat.dart';
 import 'chat_screen.dart';
 import 'new_chat_screen.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'chat_view.dart';
 import 'profile/profile_settings_screen.dart';
 import 'invites_screen.dart';
@@ -318,19 +319,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
         ],
       ),
-      floatingActionButton: !isTablet
-          ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => NewChatScreen()),
-                );
-              },
-              backgroundColor: Color(0xFF7C3AED),
-              child: Icon(Icons.add_comment, color: Colors.white),
-              tooltip: 'Новый чат',
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => NewChatScreen()),
+          );
+        },
+        child: Icon(Icons.edit),
+        backgroundColor: Color(0xFF7C3AED),
+        foregroundColor: Colors.white,
+        tooltip: 'Новый чат',
+      ),
     );
   }
 
@@ -411,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.settings, color: Color(0xFF7C3AED)),
+              leading: FaIcon(FontAwesomeIcons.gear, color: Color(0xFF7C3AED)),
               title: Text(
                 'Настройки профиля',
                 style: TextStyle(
@@ -427,7 +427,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onTap: _openProfileSettings,
             ),
             ListTile(
-              leading: Icon(Icons.card_giftcard, color: Color(0xFF7C3AED)),
+              leading: FaIcon(FontAwesomeIcons.key, color: Color(0xFF7C3AED)),
               title: Text(
                 'Инвайты',
                 style: TextStyle(
@@ -444,10 +444,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             Divider(),
             ListTile(
-              leading: Icon(
-                isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                color: Color(0xFF7C3AED),
-              ),
+              leading: FaIcon(FontAwesomeIcons.circleHalfStroke,
+                  color: Color(0xFF7C3AED)),
               title: Text(
                 'Тема',
                 style: TextStyle(
@@ -463,7 +461,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
             ListTile(
-              leading: Icon(Icons.info_outline, color: Color(0xFF7C3AED)),
+              leading:
+                  FaIcon(FontAwesomeIcons.creditCard, color: Color(0xFF7C3AED)),
               title: Text(
                 'О приложении',
                 style: TextStyle(
@@ -491,7 +490,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
             Divider(),
             ListTile(
-              leading: Icon(Icons.exit_to_app, color: Colors.red),
+              leading:
+                  FaIcon(FontAwesomeIcons.rightFromBracket, color: Colors.red),
               title: Text(
                 'Выход',
                 style: TextStyle(color: Colors.red),
@@ -575,8 +575,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (hasDrawer)
             Builder(
               builder: (context) => IconButton(
-                icon: Icon(Icons.menu, color: Colors.white),
+                icon: Icon(Icons.menu, color: Colors.white, size: 28),
                 onPressed: () => Scaffold.of(context).openDrawer(),
+                tooltip: 'Меню',
               ),
             ),
           Expanded(
@@ -589,10 +590,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          if (isTablet)
+          // Иконки только для планшетов/десктопов
+          if (isTablet) ...[
             IconButton(
-              icon: Icon(Icons.add_comment, color: Colors.white),
+              icon: Icon(Icons.edit, color: Colors.white, size: 26),
               onPressed: () {
+                print('New chat pressed');
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => NewChatScreen()),
@@ -600,6 +603,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               },
               tooltip: 'Новый чат',
             ),
+          ],
         ],
       ),
     );
