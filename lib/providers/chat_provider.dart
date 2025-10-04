@@ -1,42 +1,126 @@
 // lib/providers/chat_provider.dart
 
-import 'package:flutter/foundation.dart';
 import 'dart:async';
-import 'dart:html' as html;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
 import '../services/websocket_manager.dart';
 
-class ChatProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
+class ChatProvider with ChangeNotifier {
+  final ApiService _api = ApiService.instance;
   final WebSocketManager _wsManager = WebSocketManager.instance;
 
   List<Chat> _chats = [];
   List<Message> _messages = [];
-  String? _currentChatId;
-  String? _currentUserId;
   bool _isLoading = false;
   String? _errorMessage;
-  Map<String, bool> _typingStatus = {};
-  bool _isWindowFocused = true;
+  String? _currentChatId;
+  String? _currentUserId;
+  final Map<String, bool> _typingStatus = {};
 
   StreamSubscription? _wsSubscription;
   StreamSubscription? _focusSubscription;
   StreamSubscription? _blurSubscription;
 
-  static const bool kIsWeb = bool.fromEnvironment('dart.library.js_util');
-
   List<Chat> get chats => _chats;
   List<Message> get messages => _messages;
-  String? get currentChatId => _currentChatId;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  String? get currentUserId => _currentUserId ?? '';
+  String? get currentChatId => _currentChatId;
+  String? get currentUserId => _currentUserId;
+
+  ChatProvider() {
+    _subscribeToWebSocket();
+    _subscribeToAppLifecycle();
+  }
 
   void _log(String message) {
-    if (kDebugMode) {
-      print('[ChatProvider] $message');
+    debugPrint('[ChatProvider] $message');
+  }
+
+  void _subscribeToWebSocket() {
+    _wsSubscription = _wsManager.messages.listen((data) {
+      _handleWebSocketMessage(data);
+    });
+  }
+
+  void _subscribeToAppLifecycle() {
+    // Метод onFocus/onBlur не существует в WebSocketManager
+    // Убираем эти подписки или реализуем альтернативным способом
+    _log('Подписка на lifecycle events (пока не реализована)');
+  }
+
+  void _handleWebSocketMessage(Map<String, dynamic> data) {
+    final type = data['type'];
+    _log('WebSocket сообщение: $type');
+
+    switch (type) {
+      case 'new_message':
+        _handleNewMessage(data);
+        break;
+      case 'message_read':
+        _handleMessageRead(data);
+        break;
+      case 'typing':
+        _handleTyping(data);
+        break;
+      case 'stopped_typing':
+        _handleStoppedTyping(data);
+        break;
+      case 'chat_created':
+        _handleChatCreated(data);
+        break;
+      case 'chat_deleted':
+        _handleChatDeleted(data);
+        break;
+      case 'message_sent':
+        _handleMessageSent(data);
+        break;
+      case 'user_online':
+        _handleUserOnline(data);
+        break;
+      case 'user_offline':
+        _handleUserOffline(data);
+        break;
+    }
+  }
+
+  void _handleNewMessage(Map<String, dynamic> data) {
+    try {
+      final message = Message.fromJson(data['message']);
+      _log('Новое сообщение: ${message.id} в чате ${message.chatId}');
+
+      final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+
+      if (existingIndex == -1) {
+        _messages.add(message);
+      } else {
+        _messages[existingIndex] = message;
+      }
+
+      final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
+      if (chatIndex != -1) {
+        final isCurrentChat = _currentChatId == message.chatId;
+
+        _chats[chatIndex] = _chats[chatIndex].copyWith(
+          lastMessage: message.content,
+          lastMessageTime: DateTime.parse(message.timestamp),
+          unreadCount: isCurrentChat ? 0 : (_chats[chatIndex].unreadCount + 1),
+        );
+
+        final chat = _chats.removeAt(chatIndex);
+        _chats.insert(0, chat);
+      }
+
+      notifyListeners();
+
+      if (_currentChatId == message.chatId) {
+        markMessagesAsRead(message.chatId);
+      }
+    } catch (e) {
+      _log('Ошибка обработки нового сообщения: $e');
     }
   }
 
@@ -44,220 +128,18 @@ class ChatProvider extends ChangeNotifier {
     return _typingStatus[chatId] ?? false;
   }
 
-  ChatProvider() {
-    _initializeWebSocketListeners();
-    _initializeWindowFocusListeners();
-  }
-
-  void _initializeWebSocketListeners() {
-    _wsSubscription?.cancel();
-
-    _wsSubscription = _wsManager.messages.listen((data) {
-      _log('📨 Получено WS сообщение: ${data['type']}');
-
-      Future.microtask(() {
-        switch (data['type']) {
-          case 'новое_сообщение':
-          case 'message':
-          case 'new_message':
-            _log('💬 Обработка нового сообщения');
-            _handleIncomingMessage(data['message'] ?? data);
-            break;
-          case 'typing':
-          case 'пользователь_печатает':
-            _handleTypingStatus(data);
-            break;
-          case 'stopped_typing':
-          case 'пользователь_перестал_печатать':
-            _handleStoppedTyping(data);
-            break;
-          case 'message_read':
-          case 'сообщение_прочитано':
-            _handleMessageRead(data);
-            break;
-          case 'chat_created':
-            _handleChatCreated(data);
-            break;
-          case 'chat_deleted':
-            _handleChatDeleted(data);
-            break;
-          case 'message_sent':
-            _handleMessageSent(data);
-            break;
-          case 'user_online':
-            _handleUserOnline(data);
-            break;
-          case 'user_offline':
-            _handleUserOffline(data);
-            break;
-        }
-      });
-    });
-  }
-
-  void _initializeWindowFocusListeners() {
-    if (kIsWeb) {
-      _focusSubscription = html.window.onFocus.listen((_) {
-        _isWindowFocused = true;
-        _log('🔍 Окно в фокусе');
-
-        if (_currentChatId != null) {
-          final chatIndex = _chats.indexWhere((c) => c.id == _currentChatId);
-          if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
-            _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
-            notifyListeners();
-          }
-
-          markMessagesAsRead(_currentChatId!);
-        }
-      });
-
-      _blurSubscription = html.window.onBlur.listen((_) {
-        _isWindowFocused = false;
-        _log('🔍 Окно потеряло фокус');
-      });
-
-      html.document.addEventListener('visibilitychange', (event) {
-        final isVisible = !html.document.hidden!;
-        _isWindowFocused = isVisible;
-
-        _log('📱 Видимость страницы: ${isVisible ? "видима" : "скрыта"}');
-
-        if (isVisible && _currentChatId != null) {
-          final chatIndex = _chats.indexWhere((c) => c.id == _currentChatId);
-          if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
-            _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
-            notifyListeners();
-          }
-
-          markMessagesAsRead(_currentChatId!);
-        }
-      });
-    }
-  }
-
-  void setCurrentUserId(String userId) {
-    _currentUserId = userId;
-    _log('Установлен ID пользователя: $userId');
-  }
-
-  void setCurrentChatId(String? chatId) {
-    _currentChatId = chatId;
-    _log('Установлен текущий чат: $chatId');
-
-    if (chatId != null) {
-      final chatIndex = _chats.indexWhere((c) => c.id == chatId);
-      if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
-        _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
-        notifyListeners();
-      }
-
-      markMessagesAsRead(chatId);
-    }
-  }
-
-  Future<void> loadChats() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      _log('Загрузка чатов...');
-      _chats = await _api.getChats();
-      _log('Загружено ${_chats.length} чатов');
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _log('Ошибка загрузки чатов: $e');
-      _errorMessage = 'Не удалось загрузить чаты';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  Future<void> loadMessages(String chatId) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      _log('Загрузка сообщений для чата: $chatId');
-      _messages = await _api.getMessages(chatId);
-      _log('Загружено ${_messages.length} сообщений');
-      _isLoading = false;
-      notifyListeners();
-    } catch (e) {
-      _log('Ошибка загрузки сообщений: $e');
-      _errorMessage = 'Не удалось загрузить сообщения';
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  // ИСПРАВЛЕНО: метод принимает параметры chatId и content
-  Future<void> sendMessage(String content,
-      {String? chatId, String? replyToId}) async {
-    final targetChatId = chatId ?? _currentChatId;
-
-    if (targetChatId == null || content.trim().isEmpty) {
-      _log(
-          'Невозможно отправить сообщение: chatId = $targetChatId, content пустой');
-      return;
-    }
-
-    try {
-      _log('Отправка сообщения в чат $targetChatId');
-
-      final message = await _api.sendMessage(targetChatId, content);
-
-      if (message != null) {
-        _log('Сообщение успешно отправлено: ${message.id}');
-
-        _addMessageLocally(message);
-        _updateChatLastMessage(message);
-      } else {
-        _log('Ошибка: сообщение не было создано на сервере');
-      }
-    } catch (e) {
-      _log('Ошибка отправки сообщения: $e');
-      _errorMessage = 'Не удалось отправить сообщение';
-      notifyListeners();
-    }
-  }
-
-  void _addMessageLocally(Message message) {
-    if (!_messages.any((m) => m.id == message.id)) {
-      _messages.add(message);
-      notifyListeners();
-    }
-  }
-
-  // ИСПРАВЛЕНО: обработка timestamp как String
-  void _updateChatLastMessage(Message message) {
-    final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
+  void togglePinChat(String chatId) {
+    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
     if (chatIndex != -1) {
-      // Преобразуем String timestamp в DateTime, если необходимо
-      DateTime? messageTime;
-
-      if (message.timestamp is String) {
-        try {
-          messageTime = DateTime.parse(message.timestamp as String);
-        } catch (e) {
-          _log('Ошибка парсинга timestamp: $e');
-          messageTime = DateTime.now();
-        }
-      } else if (message.timestamp is DateTime) {
-        messageTime = message.timestamp as DateTime;
-      } else {
-        messageTime = DateTime.now();
-      }
-
       _chats[chatIndex] = _chats[chatIndex].copyWith(
-        lastMessage: message.content,
-        lastMessageTime: messageTime,
+        isPinned: !_chats[chatIndex].isPinned,
       );
 
       _chats.sort((a, b) {
+        if (a.isPinned != b.isPinned) {
+          return a.isPinned ? -1 : 1;
+        }
+
         final aTime = a.lastMessageTime ?? DateTime.now();
         final bTime = b.lastMessageTime ?? DateTime.now();
         return bTime.compareTo(aTime);
@@ -267,152 +149,7 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> createOrGetChat(String userId) async {
-    try {
-      _log('Создание или получение чата с пользователем: $userId');
-
-      final chat = await _api.createChat(userId);
-
-      if (chat != null) {
-        _log('Чат создан/получен: ${chat.id}');
-
-        final existingIndex = _chats.indexWhere((c) => c.id == chat.id);
-
-        if (existingIndex == -1) {
-          _chats.insert(0, chat);
-        } else {
-          _chats[existingIndex] = chat;
-        }
-
-        notifyListeners();
-      }
-    } catch (e) {
-      _log('Ошибка создания/получения чата: $e');
-      _errorMessage = 'Не удалось создать чат';
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteChat(String chatId) async {
-    try {
-      _log('Удаление чата: $chatId');
-
-      final success = await _api.deleteChat(chatId);
-
-      if (success) {
-        _chats.removeWhere((c) => c.id == chatId);
-
-        if (_currentChatId == chatId) {
-          _currentChatId = null;
-          _messages.clear();
-        }
-
-        notifyListeners();
-        _log('Чат успешно удален');
-      }
-    } catch (e) {
-      _log('Ошибка удаления чата: $e');
-      _errorMessage = 'Не удалось удалить чат';
-      notifyListeners();
-    }
-  }
-
-  Future<void> markMessagesAsRead(String chatId) async {
-    try {
-      await _api.markMessagesAsRead(chatId);
-      _log('Сообщения отмечены как прочитанные для чата: $chatId');
-    } catch (e) {
-      _log('Ошибка отметки сообщений как прочитанных: $e');
-    }
-  }
-
-  Chat? getChatById(String chatId) {
-    try {
-      return _chats.firstWhere((c) => c.id == chatId);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  List<Message> getMessages(String chatId) {
-    return _messages.where((m) => m.chatId == chatId).toList();
-  }
-
-  // ИСПРАВЛЕНО: упрощенная версия для работы с List<String> participants
-  String? getTypingUserName(String chatId) {
-    if (!isUserTyping(chatId)) return null;
-
-    final chat = getChatById(chatId);
-    if (chat == null) return null;
-
-    // Возвращаем упрощенное имя, так как participants - это List<String>, а не List<User>
-    // В реальном приложении здесь нужно получать username через отдельный запрос к API
-    return "Собеседник";
-  }
-
-  // ИСПРАВЛЕНО: метод принимает параметры chatId и isTyping
-  Future<void> sendTypingStatus(String chatId, bool isTyping) async {
-    _wsManager.send({
-      'type': isTyping ? 'typing' : 'stopped_typing',
-      'chatId': chatId,
-      'userId': _currentUserId,
-    });
-  }
-
-  Future<void> togglePinChat(String chatId) async {
-    final chatIndex = _chats.indexWhere((c) => c.id == chatId);
-    if (chatIndex == -1) return;
-
-    _chats[chatIndex] = _chats[chatIndex].copyWith(
-      isPinned: !_chats[chatIndex].isPinned,
-    );
-
-    _chats.sort((a, b) {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-
-      final aTime = a.lastMessageTime ?? DateTime.now();
-      final bTime = b.lastMessageTime ?? DateTime.now();
-      return bTime.compareTo(aTime);
-    });
-
-    notifyListeners();
-  }
-
-  Future<void> clearMessages(String chatId) async {
-    _messages.removeWhere((m) => m.chatId == chatId);
-    notifyListeners();
-  }
-
-  void _handleIncomingMessage(Map<String, dynamic> data) {
-    try {
-      final message = Message.fromJson(data);
-      _log('Новое сообщение: ${message.id} в чате ${message.chatId}');
-
-      if (message.chatId == _currentChatId) {
-        _addMessageLocally(message);
-
-        if (_isWindowFocused) {
-          markMessagesAsRead(message.chatId);
-        }
-      }
-
-      _updateChatLastMessage(message);
-
-      final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
-      if (chatIndex != -1 && message.chatId != _currentChatId) {
-        final currentUnread = _chats[chatIndex].unreadCount;
-        _chats[chatIndex] = _chats[chatIndex].copyWith(
-          unreadCount: currentUnread + 1,
-        );
-        notifyListeners();
-      }
-    } catch (e) {
-      _log('Ошибка обработки входящего сообщения: $e');
-    }
-  }
-
-  void _handleTypingStatus(Map<String, dynamic> data) {
+  void _handleTyping(Map<String, dynamic> data) {
     final chatId = data['chatId'] ?? data['chat_id'];
     if (chatId != null) {
       _typingStatus[chatId] = true;
@@ -467,6 +204,242 @@ class ChatProvider extends ChangeNotifier {
   void _handleUserOffline(Map<String, dynamic> data) {
     final userId = data['userId'];
     _log('Пользователь оффлайн: $userId');
+  }
+
+  void setCurrentUserId(String userId) {
+    _currentUserId = userId;
+    _log('Установлен ID пользователя: $userId');
+  }
+
+  // ИСПРАВЛЕННЫЙ МЕТОД - очищает старые сообщения и загружает новые
+  void setCurrentChatId(String? chatId) {
+    // Если переключаемся на другой чат - очищаем старые сообщения
+    if (_currentChatId != chatId) {
+      _messages.clear();
+      _log('Очищены сообщения предыдущего чата');
+    }
+
+    _currentChatId = chatId;
+    _log('Установлен текущий чат: $chatId');
+
+    if (chatId != null) {
+      // Сбрасываем счетчик непрочитанных
+      final chatIndex = _chats.indexWhere((c) => c.id == chatId);
+      if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
+        _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
+      }
+
+      // Загружаем сообщения нового чата
+      loadMessages(chatId);
+
+      // Отмечаем сообщения как прочитанные
+      markMessagesAsRead(chatId);
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> loadChats() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _log('Загрузка чатов...');
+      _chats = await _api.getChats();
+      _log('Загружено ${_chats.length} чатов');
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _log('Ошибка загрузки чатов: $e');
+      _errorMessage = 'Не удалось загрузить чаты';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadMessages(String chatId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _log('Загрузка сообщений для чата: $chatId');
+      _messages = await _api.getMessages(chatId);
+      _log('Загружено ${_messages.length} сообщений');
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _log('Ошибка загрузки сообщений: $e');
+      _errorMessage = 'Не удалось загрузить сообщения';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> sendMessage(String content,
+      {String? chatId, String? replyToId}) async {
+    final targetChatId = chatId ?? _currentChatId;
+
+    if (targetChatId == null) {
+      _log('Ошибка: chatId не указан');
+      return;
+    }
+
+    try {
+      _log('Отправка сообщения в чат: $targetChatId');
+
+      final message = await _api.sendMessage(targetChatId, content);
+
+      if (message != null) {
+        _log('Сообщение отправлено: ${message.id}');
+
+        final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+
+        if (existingIndex == -1) {
+          _messages.add(message);
+        } else {
+          _messages[existingIndex] = message;
+        }
+
+        final chatIndex = _chats.indexWhere((c) => c.id == targetChatId);
+        if (chatIndex != -1) {
+          _chats[chatIndex] = _chats[chatIndex].copyWith(
+            lastMessage: message.content,
+            lastMessageTime: DateTime.parse(message.timestamp),
+          );
+
+          final chat = _chats.removeAt(chatIndex);
+          _chats.insert(0, chat);
+        }
+
+        notifyListeners();
+      }
+    } catch (e) {
+      _log('Ошибка отправки сообщения: $e');
+      _errorMessage = 'Не удалось отправить сообщение';
+      notifyListeners();
+    }
+  }
+
+  Future<void> createOrGetChat(String userId) async {
+    try {
+      _log('Создание или получение чата с пользователем: $userId');
+
+      final chat = await _api.createChat(userId);
+
+      if (chat != null) {
+        _log('Чат создан/получен: ${chat.id}');
+
+        final existingIndex = _chats.indexWhere((c) => c.id == chat.id);
+
+        if (existingIndex == -1) {
+          _chats.insert(0, chat);
+        } else {
+          _chats[existingIndex] = chat;
+        }
+
+        notifyListeners();
+      }
+    } catch (e) {
+      _log('Ошибка создания/получения чата: $e');
+      _errorMessage = 'Не удалось создать чат';
+      notifyListeners();
+    }
+  }
+
+  // НОВЫЙ МЕТОД для создания группового чата
+  Future<void> createGroupChat(
+      String groupName, List<String> participantIds) async {
+    try {
+      _log(
+          'Создание группового чата: $groupName с ${participantIds.length} участниками');
+
+      final chat = await _api.createGroupChat(groupName, participantIds);
+
+      if (chat != null) {
+        _log('Групповой чат создан: ${chat.id}');
+
+        final existingIndex = _chats.indexWhere((c) => c.id == chat.id);
+
+        if (existingIndex == -1) {
+          _chats.insert(0, chat);
+        } else {
+          _chats[existingIndex] = chat;
+        }
+
+        // Обновляем список чатов
+        await loadChats();
+
+        notifyListeners();
+      }
+    } catch (e) {
+      _log('Ошибка создания группового чата: $e');
+      _errorMessage = 'Не удалось создать групповой чат';
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> deleteChat(String chatId) async {
+    try {
+      _log('Удаление чата: $chatId');
+
+      final success = await _api.deleteChat(chatId);
+
+      if (success) {
+        _chats.removeWhere((c) => c.id == chatId);
+
+        if (_currentChatId == chatId) {
+          _currentChatId = null;
+          _messages.clear();
+        }
+
+        notifyListeners();
+        _log('Чат успешно удален');
+      }
+    } catch (e) {
+      _log('Ошибка удаления чата: $e');
+      _errorMessage = 'Не удалось удалить чат';
+      notifyListeners();
+    }
+  }
+
+  Future<void> markMessagesAsRead(String chatId) async {
+    try {
+      await _api.markMessagesAsRead(chatId);
+      _log('Сообщения отмечены как прочитанные для чата: $chatId');
+    } catch (e) {
+      _log('Ошибка отметки сообщений как прочитанных: $e');
+    }
+  }
+
+  Chat? getChatById(String chatId) {
+    try {
+      return _chats.firstWhere((c) => c.id == chatId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  List<Message> getMessages(String chatId) {
+    return _messages.where((m) => m.chatId == chatId).toList();
+  }
+
+  String? getTypingUserName(String chatId) {
+    if (!isUserTyping(chatId)) return null;
+
+    final chat = getChatById(chatId);
+    if (chat == null) return null;
+
+    return "Собеседник";
+  }
+
+  Future<void> sendTypingStatus(String chatId, bool isTyping) async {
+    _wsManager.send({
+      'type': isTyping ? 'typing' : 'stopped_typing',
+      'chatId': chatId,
+    });
   }
 
   @override

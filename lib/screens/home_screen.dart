@@ -609,25 +609,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: EdgeInsets.all(12),
-      color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
-      child: TextField(
-        controller: _searchController,
-        onChanged: _searchChats,
-        style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
-        decoration: InputDecoration(
-          hintText: 'Поиск чатов...',
-          hintStyle:
-              TextStyle(color: isDarkMode ? Colors.white54 : Colors.black54),
-          prefixIcon:
-              Icon(Icons.search, color: isDarkMode ? Colors.white70 : null),
-          filled: true,
-          fillColor: isDarkMode ? Color(0xFF2D2D2D) : Colors.grey[100],
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide.none,
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDarkMode
+              ? [
+                  Color(0xFF667EEA).withOpacity(0.1),
+                  Color(0xFF764BA2).withOpacity(0.05)
+                ]
+              : [
+                  Color(0xFF667EEA).withOpacity(0.05),
+                  Color(0xFF764BA2).withOpacity(0.03)
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: isDarkMode ? Color(0xFF2D2D2D) : Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFF7C3AED).withOpacity(0.1),
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _searchChats,
+          style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
+          decoration: InputDecoration(
+            hintText: 'Поиск чатов...',
+            hintStyle: TextStyle(
+              color: isDarkMode ? Colors.white54 : Colors.black45,
+            ),
+            prefixIcon: Icon(
+              Icons.search,
+              color: Color(0xFF7C3AED),
+            ),
+            suffixIcon: _isSearching
+                ? IconButton(
+                    icon: Icon(Icons.clear, color: Color(0xFF7C3AED)),
+                    onPressed: () {
+                      _searchController.clear();
+                      _searchChats('');
+                    },
+                  )
+                : null,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 0),
         ),
       ),
     );
@@ -682,45 +716,106 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isTablet = MediaQuery.of(context).size.width > 600;
 
     return Container(
-      color: isSelected
-          ? (isDarkMode
-              ? Color(0xFF7C3AED).withOpacity(0.2)
-              : Color(0xFF7C3AED).withOpacity(0.1))
-          : null,
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? LinearGradient(
+                colors: isDarkMode
+                    ? [
+                        Color(0xFF667EEA).withOpacity(0.3),
+                        Color(0xFF764BA2).withOpacity(0.2)
+                      ]
+                    : [
+                        Color(0xFF667EEA).withOpacity(0.15),
+                        Color(0xFF764BA2).withOpacity(0.1)
+                      ],
+              )
+            : null,
+        border: isSelected
+            ? Border(
+                left: BorderSide(
+                  color: Color(0xFF7C3AED),
+                  width: 4,
+                ),
+              )
+            : null,
+      ),
       child: ListTile(
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Stack(
           children: [
-            CircleAvatar(
-              radius: 25,
-              backgroundColor: Color(0xFF7C3AED),
-              backgroundImage:
-                  chat.avatarUrl != null ? NetworkImage(chat.avatarUrl!) : null,
-              child: chat.avatarUrl == null
-                  ? Text(
-                      chat.name[0].toUpperCase(),
-                      style: TextStyle(color: Colors.white, fontSize: 20),
-                    )
-                  : null,
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.transparent,
+                backgroundImage:
+                    chat.avatarUrl != null && chat.avatarUrl!.isNotEmpty
+                        ? NetworkImage(chat.avatarUrl!)
+                        : null,
+                child: chat.avatarUrl == null || chat.avatarUrl!.isEmpty
+                    ? Text(
+                        chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
             ),
             if (chat.unreadCount > 0)
               Positioned(
                 right: 0,
                 top: 0,
                 child: Container(
-                  padding: EdgeInsets.all(4),
+                  padding: EdgeInsets.all(5),
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE91E63), Color(0xFFF50057)],
+                    ),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.pink.withOpacity(0.5),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
                   ),
-                  constraints: BoxConstraints(minWidth: 18, minHeight: 18),
+                  constraints: BoxConstraints(minWidth: 20, minHeight: 20),
                   child: Text(
-                    chat.unreadCount > 9 ? '9+' : '${chat.unreadCount}',
+                    chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
                     textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            if (chat.isOnline && chat.unreadCount == 0)
+              Positioned(
+                right: 2,
+                bottom: 2,
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Color(0xFF00E676),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
@@ -731,30 +826,42 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (chat.isPinned)
               Padding(
                 padding: EdgeInsets.only(right: 6),
-                child: Icon(Icons.push_pin, size: 14, color: Color(0xFF7C3AED)),
+                child: Icon(
+                  Icons.push_pin,
+                  size: 16,
+                  color: Color(0xFF7C3AED),
+                ),
               ),
             Expanded(
               child: Text(
                 chat.name,
                 style: TextStyle(
-                  fontWeight: chat.unreadCount > 0
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                  color: isDarkMode ? Colors.white : Colors.black,
+                  fontWeight:
+                      chat.unreadCount > 0 ? FontWeight.bold : FontWeight.w600,
+                  fontSize: 16,
+                  color: isDarkMode ? Colors.white : Colors.black87,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
         ),
-        subtitle: Text(
-          chat.lastMessage ?? 'Нет сообщений',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: isDarkMode ? Colors.white70 : Colors.black54,
-            fontWeight:
-                chat.unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+        subtitle: Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            chat.lastMessage ?? 'Нет сообщений',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: chat.unreadCount > 0
+                  ? (isDarkMode
+                      ? Colors.white.withOpacity(0.9)
+                      : Colors.black87)
+                  : (isDarkMode ? Colors.white60 : Colors.black54),
+              fontWeight:
+                  chat.unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
+              fontSize: 14,
+            ),
           ),
         ),
         trailing: Column(
@@ -762,21 +869,34 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             if (chat.lastMessageTime != null)
-              Text(
-                _formatTime(chat.lastMessageTime!),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: chat.unreadCount > 0
-                      ? Color(0xFF7C3AED)
-                      : (isDarkMode ? Colors.white60 : Colors.black45),
-                  fontWeight: chat.unreadCount > 0
-                      ? FontWeight.bold
-                      : FontWeight.normal,
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: chat.unreadCount > 0
+                      ? LinearGradient(
+                          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  _formatTime(chat.lastMessageTime!),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: chat.unreadCount > 0
+                        ? Colors.white
+                        : (isDarkMode ? Colors.white60 : Colors.black54),
+                    fontWeight: chat.unreadCount > 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
+            if (!isTablet) SizedBox(height: 4),
             if (!isTablet)
               IconButton(
                 icon: Icon(Icons.more_vert, size: 18),
+                color: isDarkMode ? Colors.white60 : Colors.black54,
                 onPressed: () => _showChatOptions(chat),
                 padding: EdgeInsets.zero,
                 constraints: BoxConstraints(),

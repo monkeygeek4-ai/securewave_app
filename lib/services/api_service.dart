@@ -165,6 +165,7 @@ class ApiService {
 
   bool get hasToken => _authToken != null && _authToken!.isNotEmpty;
   String? get currentToken => _authToken;
+  String? get token => _authToken; // Добавлен геттер для совместимости
 
   Future<bool> waitForToken(
       {Duration timeout = const Duration(seconds: 2)}) async {
@@ -358,6 +359,38 @@ class ApiService {
     }
   }
 
+  // НОВЫЙ МЕТОД: Создание группового чата
+  Future<Chat?> createGroupChat(
+      String groupName, List<String> participantIds) async {
+    try {
+      _log(
+          'API: Создание группового чата "$groupName" с ${participantIds.length} участниками');
+
+      final response = await _dio.post('/chats/create-group', data: {
+        'name': groupName,
+        'participants': participantIds,
+      });
+
+      _log('API Response: ${response.statusCode}');
+      _log('Response data: ${response.data}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _log('API: Групповой чат создан успешно');
+        return Chat.fromJson(response.data);
+      }
+
+      _log('API: Неожиданный статус код: ${response.statusCode}');
+      return null;
+    } on DioException catch (e) {
+      _log('DioException при создании группового чата: ${e.message}');
+      _log('Response: ${e.response?.data}');
+      rethrow;
+    } catch (e) {
+      _log('Ошибка создания группового чата: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> deleteChat(String chatId) async {
     try {
       final response = await _dio.delete('/chats/delete', data: {
@@ -505,5 +538,9 @@ class ApiService {
 
   Future<void> saveToken(String token) async {
     await _saveToken(token);
+  }
+
+  void setToken(String token) {
+    _authToken = token;
   }
 }

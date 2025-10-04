@@ -26,7 +26,6 @@ class _ChatScreenState extends State<ChatScreen> {
   final FocusNode _focusNode = FocusNode();
   bool _isTyping = false;
   Timer? _typingTimer;
-  bool _isLoading = false;
 
   String get _chatId {
     if (widget.chat is Chat) {
@@ -69,27 +68,21 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
 
-    // ВАЖНО: Устанавливаем текущий чат при открытии экрана
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final chatProvider = context.read<ChatProvider>();
       chatProvider.setCurrentChatId(_chatId);
 
-      // Загружаем сообщения
-      chatProvider.loadMessages(_chatId);
+      await Future.delayed(Duration(milliseconds: 100));
 
-      // Отмечаем сообщения как прочитанные
-      chatProvider.markMessagesAsRead(_chatId);
-
-      // Прокручиваем вниз
-      _scrollToBottom();
+      if (mounted) {
+        _scrollToBottom();
+      }
     });
 
-    // Добавляем слушатель изменения текста для обновления кнопки
     _messageController.addListener(_onTextChanged);
   }
 
   void _onTextChanged() {
-    // Обновляем UI только если состояние кнопки изменилось
     if (mounted) {
       setState(() {});
     }
@@ -97,12 +90,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    // ВАЖНО: Сбрасываем текущий чат при закрытии экрана
-    context.read<ChatProvider>().setCurrentChatId(null);
+    final chatProvider = context.read<ChatProvider>();
 
-    // Удаляем слушатель
+    if (chatProvider.currentChatId == _chatId) {
+      chatProvider.setCurrentChatId(null);
+    }
+
     _messageController.removeListener(_onTextChanged);
-
     _scrollController.dispose();
     _messageController.dispose();
     _focusNode.dispose();
@@ -111,99 +105,58 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
-  void _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    _messageController.clear();
-    // Важно: обновляем UI после очистки
-    setState(() {});
-
-    _stopTyping();
-
-    try {
-      final chatProvider = context.read<ChatProvider>();
-      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРАМИ chatId и content
-      await chatProvider.sendMessage(text, chatId: _chatId);
-
-      // Прокрутка вниз после отправки
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка отправки сообщения'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
   void _handleTyping() {
     final chatProvider = context.read<ChatProvider>();
 
     if (!_isTyping) {
       _isTyping = true;
-      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
       chatProvider.sendTypingStatus(_chatId, true);
     }
 
     _typingTimer?.cancel();
-    _typingTimer = Timer(Duration(seconds: 3), _stopTyping);
+    _typingTimer = Timer(Duration(seconds: 2), () {
+      _isTyping = false;
+      chatProvider.sendTypingStatus(_chatId, false);
+    });
   }
 
-  void _stopTyping() {
-    if (_isTyping) {
-      _isTyping = false;
-      // ИСПОЛЬЗУЕМ МЕТОД С ПАРАМЕТРОМ chatId
-      context.read<ChatProvider>().sendTypingStatus(_chatId, false);
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      Future.delayed(Duration(milliseconds: 300), () {
+        if (_scrollController.hasClients && mounted) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
     }
-    _typingTimer?.cancel();
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    final chatProvider = context.read<ChatProvider>();
+
+    _messageController.clear();
+    _focusNode.unfocus();
+
+    await chatProvider.sendMessage(text, chatId: _chatId);
+
+    if (mounted) {
+      _scrollToBottom();
+    }
   }
 
   void _startCall(String callType) {
-    // Получаем ID получателя из чата
     final chatProvider = context.read<ChatProvider>();
-
-    // Проверяем, что у нас есть chatId
-    if (_chatId.isEmpty) {
-      print('[ChatScreen] chatId пустой');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Не удалось начать звонок: чат не определен'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     final chat = chatProvider.getChatById(_chatId);
 
     if (chat == null) {
-      print('[ChatScreen] Чат не найден для ID: $_chatId');
-      // Попробуем использовать данные из widget.chat
       String? receiverId;
 
-      // Если widget.chat это Map
       if (widget.chat is Map) {
         receiverId = widget.chat['receiverId']?.toString() ??
             widget.chat['receiver_id']?.toString();
@@ -219,11 +172,6 @@ class _ChatScreenState extends State<ChatScreen> {
         return;
       }
 
-      // Запускаем звонок с данными из widget.chat
-      print(
-          '[ChatScreen] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId');
-
-      // Переходим на экран звонка
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -239,7 +187,6 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Если чат найден, получаем receiverId из участников
     final participants = chat.participants;
     if (participants == null || participants.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -251,19 +198,13 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // Находим собеседника (не текущего пользователя)
     final currentUserId = chatProvider.currentUserId;
 
-    // participants - это List<String>, поэтому просто ищем ID, который не равен currentUserId
     final receiverId = participants.firstWhere(
       (id) => id != currentUserId,
       orElse: () => participants.first,
     );
 
-    print(
-        '[ChatScreen] Начинаем ${callType == "video" ? "видео" : "аудио"} звонок с $receiverId');
-
-    // Переходим на экран звонка
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -345,7 +286,6 @@ class _ChatScreenState extends State<ChatScreen> {
               title: Text('Отключить уведомления'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Реализовать отключение уведомлений
               },
             ),
             ListTile(
@@ -353,7 +293,6 @@ class _ChatScreenState extends State<ChatScreen> {
               title: Text('Поиск по чату'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Реализовать поиск
               },
             ),
             ListTile(
@@ -383,16 +322,18 @@ class _ChatScreenState extends State<ChatScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Очистить чат?'),
-        content: Text('Все сообщения будут удалены. Это действие необратимо.'),
+        content: Text('Все сообщения будут удалены безвозвратно.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Отмена'),
           ),
           TextButton(
-            onPressed: () async {
+            onPressed: () {
               Navigator.pop(context);
-              // TODO: Реализовать очистку чата
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Функция в разработке')),
+              );
             },
             child: Text('Очистить', style: TextStyle(color: Colors.red)),
           ),
@@ -415,29 +356,9 @@ class _ChatScreenState extends State<ChatScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-
-              try {
-                // ИСПРАВЛЕНО: убрали обработку результата deleted
-                await context.read<ChatProvider>().deleteChat(_chatId);
-
-                if (mounted) {
-                  Navigator.of(context).pop(); // Возвращаемся на главный экран
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Чат удален'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Не удалось удалить чат'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+              await context.read<ChatProvider>().deleteChat(_chatId);
+              if (mounted) {
+                Navigator.pop(context);
               }
             },
             child: Text('Удалить', style: TextStyle(color: Colors.red)),
@@ -449,34 +370,43 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
+    final currentUserId = authProvider.currentUser?.id ?? '';
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        backgroundColor: Color(0xFF2B5CE6),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
         foregroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: InkWell(
-          onTap: () {
-            // TODO: Открыть профиль собеседника
-          },
+        title: GestureDetector(
+          onTap: () {},
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.white,
-                backgroundImage:
-                    _chatAvatar != null ? NetworkImage(_chatAvatar!) : null,
-                child: _chatAvatar == null
-                    ? Text(
-                        _chatName[0].toUpperCase(),
-                        style: TextStyle(color: Color(0xFF2B5CE6)),
-                      )
-                    : null,
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  backgroundImage:
+                      _chatAvatar != null && _chatAvatar!.isNotEmpty
+                          ? NetworkImage(_chatAvatar!)
+                          : null,
+                  child: _chatAvatar == null || _chatAvatar!.isEmpty
+                      ? Icon(Icons.person, color: Colors.white, size: 20)
+                      : null,
+                ),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -485,24 +415,25 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     Text(
                       _chatName,
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
                     ),
                     Consumer<ChatProvider>(
                       builder: (context, chatProvider, _) {
-                        final typingUser =
-                            chatProvider.getTypingUserName(_chatId);
-                        if (typingUser != null) {
-                          return Text(
-                            'печатает...',
-                            style: TextStyle(
-                                fontSize: 12, fontStyle: FontStyle.italic),
-                          );
-                        }
+                        final isTyping = chatProvider.isUserTyping(_chatId);
                         return Text(
-                          _isOnline ? 'в сети' : 'не в сети',
-                          style: TextStyle(fontSize: 12),
+                          isTyping
+                              ? 'печатает...'
+                              : _isOnline
+                                  ? 'в сети'
+                                  : 'был(а) недавно',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
                         );
                       },
                     ),
@@ -513,19 +444,16 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         actions: [
-          // Кнопка аудио звонка
           IconButton(
             icon: Icon(Icons.call),
             onPressed: () => _startCall('audio'),
             tooltip: 'Аудио звонок',
           ),
-          // Кнопка видео звонка
           IconButton(
             icon: Icon(Icons.videocam),
             onPressed: () => _startCall('video'),
             tooltip: 'Видео звонок',
           ),
-          // Кнопка меню
           IconButton(
             icon: Icon(Icons.more_vert),
             onPressed: _showChatOptions,
@@ -534,164 +462,245 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Список сообщений
           Expanded(
-            child: Consumer<ChatProvider>(
-              builder: (context, chatProvider, _) {
-                final messages = chatProvider.getMessages(_chatId);
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDarkMode
+                      ? [Color(0xFF1E1E1E), Color(0xFF0D0D0D)]
+                      : [Color(0xFFF5F3FF), Color(0xFFEDE7F6)],
+                ),
+              ),
+              child: Consumer<ChatProvider>(
+                builder: (context, chatProvider, _) {
+                  final messages = chatProvider.getMessages(_chatId);
 
-                if (messages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'Нет сообщений',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: EdgeInsets.symmetric(vertical: 10),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final previousMessage =
-                        index > 0 ? messages[index - 1] : null;
-
-                    return Column(
-                      children: [
-                        if (_shouldShowDate(message, previousMessage))
-                          Padding(
-                            padding: EdgeInsets.symmetric(vertical: 10),
-                            child: Container(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(12),
+                  if (messages.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
                               ),
-                              child: Text(
-                                _formatDate(message.timestamp),
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey[700]),
-                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.chat_bubble_outline,
+                              size: 50,
+                              color: Colors.white,
                             ),
                           ),
-                        MessageBubble(
-                          message: message,
-                          isMe: message.senderId ==
-                              context.read<ChatProvider>().currentUserId,
-                        ),
-                      ],
+                          SizedBox(height: 20),
+                          Text(
+                            'Нет сообщений',
+                            style: TextStyle(
+                              color: isDarkMode
+                                  ? Colors.white70
+                                  : Color(0xFF7C3AED),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Начните переписку',
+                            style: TextStyle(
+                              color:
+                                  isDarkMode ? Colors.white54 : Colors.black54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     );
-                  },
-                );
-              },
+                  }
+
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      final previousMessage =
+                          index > 0 ? messages[index - 1] : null;
+                      final showDate =
+                          _shouldShowDate(message, previousMessage);
+
+                      return Column(
+                        children: [
+                          if (showDate)
+                            Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Color(0xFF667EEA),
+                                      Color(0xFF764BA2)
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Color(0xFF7C3AED).withOpacity(0.3),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  _formatDate(message.timestamp),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          MessageBubble(
+                            message: message,
+                            isMe: message.senderId == currentUserId,
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
-
-          // Индикатор печати
           Consumer<ChatProvider>(
             builder: (context, chatProvider, _) {
-              final typingUser = chatProvider.getTypingUserName(_chatId);
-              if (typingUser != null) {
+              if (chatProvider.isUserTyping(_chatId)) {
                 return Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      TypingIndicator(),
-                      SizedBox(width: 8),
-                      Text(
-                        '$typingUser печатает...',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? Color(0xFF1E1E1E) : Color(0xFFF5F3FF),
+                  ),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0xFF667EEA).withOpacity(0.2),
+                            Color(0xFF764BA2).withOpacity(0.1)
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                    ],
+                      child: TypingIndicator(),
+                    ),
                   ),
                 );
               }
               return SizedBox.shrink();
             },
           ),
-
-          // Поле ввода сообщения
           Container(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Color(0xFF7C3AED).withOpacity(0.1),
                   blurRadius: 10,
                   offset: Offset(0, -2),
                 ),
               ],
             ),
-            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  // Кнопка прикрепления файлов
-                  IconButton(
-                    icon: Icon(Icons.attach_file, color: Colors.grey[600]),
-                    onPressed: () {
-                      // TODO: Прикрепление файлов
-                    },
+            child: Row(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    ),
+                    shape: BoxShape.circle,
                   ),
-                  // Поле ввода
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(24),
+                  child: IconButton(
+                    icon: Icon(Icons.attach_file, color: Colors.white),
+                    onPressed: () {},
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMode ? Color(0xFF2D2D2D) : Color(0xFFF5F3FF),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Color(0xFF7C3AED).withOpacity(0.3),
+                        width: 1,
                       ),
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _focusNode,
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
-                        onChanged: (text) {
-                          if (text.isNotEmpty) {
-                            _handleTyping();
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Сообщение',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                    ),
+                    child: TextField(
+                      controller: _messageController,
+                      focusNode: _focusNode,
+                      maxLines: null,
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                      ),
+                      onChanged: (text) {
+                        if (text.isNotEmpty) {
+                          _handleTyping();
+                        }
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                        hintText: 'Сообщение...',
+                        hintStyle: TextStyle(
+                          color: isDarkMode ? Colors.white54 : Colors.black54,
+                        ),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 8),
-                  // Кнопка отправки
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: _messageController.text.trim().isEmpty
-                        ? Colors.grey[300]
-                        : Color(0xFF2B5CE6),
-                    child: IconButton(
-                      icon: _isLoading
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              Icons.send,
-                              color: Colors.white,
-                              size: 20,
+                ),
+                SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: _messageController.text.trim().isNotEmpty
+                        ? LinearGradient(
+                            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                          )
+                        : null,
+                    color: _messageController.text.trim().isEmpty
+                        ? (isDarkMode ? Color(0xFF2D2D2D) : Colors.grey[300])
+                        : null,
+                    shape: BoxShape.circle,
+                    boxShadow: _messageController.text.trim().isNotEmpty
+                        ? [
+                            BoxShadow(
+                              color: Color(0xFF7C3AED).withOpacity(0.4),
+                              blurRadius: 8,
+                              spreadRadius: 1,
                             ),
-                      onPressed:
-                          _messageController.text.trim().isEmpty || _isLoading
-                              ? null
-                              : _sendMessage,
-                    ),
+                          ]
+                        : null,
                   ),
-                ],
-              ),
+                  child: IconButton(
+                    icon: Icon(Icons.send, color: Colors.white),
+                    onPressed: _messageController.text.trim().isNotEmpty
+                        ? _sendMessage
+                        : null,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
