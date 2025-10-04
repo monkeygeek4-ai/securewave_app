@@ -41,9 +41,22 @@ class WebRTCService {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-      {'urls': 'stun:stun2.l.google.com:19302'},
-      {'urls': 'stun:stun3.l.google.com:19302'},
-      {'urls': 'stun:stun4.l.google.com:19302'},
+      {'urls': 'stun:securewave.sbk-19.ru:3478'},
+      {
+        'urls': 'turn:securewave.sbk-19.ru:3478?transport=udp',
+        'username': 'user',
+        'credential': 'VerySecureRandomKey123ChangeThis'
+      },
+      {
+        'urls': 'turn:securewave.sbk-19.ru:3478?transport=tcp',
+        'username': 'user',
+        'credential': 'VerySecureRandomKey123ChangeThis'
+      },
+      {
+        'urls': 'turns:securewave.sbk-19.ru:5349?transport=tcp',
+        'username': 'user',
+        'credential': 'VerySecureRandomKey123ChangeThis'
+      }
     ]
   };
 
@@ -97,6 +110,7 @@ class WebRTCService {
           WebSocketManager.instance.messages.listen(_handleWebSocketMessage);
 
       print('[WebRTC] Сервис успешно инициализирован');
+      print('[WebRTC] TURN сервер: securewave.sbk-19.ru:3478');
     } catch (e) {
       print('[WebRTC] Ошибка инициализации: $e');
       throw e;
@@ -111,6 +125,7 @@ class WebRTCService {
         _handleIncomingCall(message);
         break;
       case 'call_answer':
+        print('[WebRTC] Получен call_answer от получателя');
         _handleCallAnswer(message);
         break;
       case 'call_ice_candidate':
@@ -167,7 +182,18 @@ class WebRTCService {
         receiverId,
       );
 
-      print('[WebRTC] Offer отправлен');
+      print('[WebRTC] Offer отправлен, ожидаем answer...');
+
+      // Таймаут для диагностики
+      Timer(Duration(seconds: 15), () {
+        if (_currentCall != null &&
+            (_currentCall!.status == CallStatus.calling ||
+                _currentCall!.status == CallStatus.connecting)) {
+          print('[WebRTC] ВНИМАНИЕ: Соединение не установилось за 15 сек');
+          print('[WebRTC] Текущий статус: ${_currentCall!.status}');
+          print('[WebRTC] Проверьте: получен ли call_answer от получателя');
+        }
+      });
     } catch (e) {
       print('[WebRTC] Ошибка начала звонка: $e');
       await endCall('error');
@@ -207,6 +233,9 @@ class WebRTCService {
   Future<void> _createPeerConnection() async {
     try {
       print('[WebRTC] Создание peer connection');
+      print('[WebRTC] Используем TURN сервер: securewave.sbk-19.ru');
+      print(
+          '[WebRTC] ICE серверы: ${_iceServers['iceServers'].length} конфигураций');
 
       _peerConnection = await createPeerConnection(_iceServers);
 
@@ -217,7 +246,19 @@ class WebRTCService {
       }
 
       _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-        print('[WebRTC] Новый ICE кандидат');
+        final candidateStr = candidate.candidate ?? '';
+        print('[WebRTC] Новый ICE кандидат: $candidateStr');
+
+        if (candidateStr.contains('typ relay')) {
+          print(
+              '[WebRTC] RELAY кандидат через TURN! IP: ${candidateStr.split(' ')[4]}');
+        } else if (candidateStr.contains('typ srflx')) {
+          print(
+              '[WebRTC] SRFLX кандидат через STUN! IP: ${candidateStr.split(' ')[4]}');
+        } else if (candidateStr.contains('typ host')) {
+          print('[WebRTC] HOST кандидат (локальный)');
+        }
+
         if (_currentCall != null) {
           WebSocketManager.instance.sendIceCandidate(
             _currentCall!.id,
@@ -227,10 +268,11 @@ class WebRTCService {
       };
 
       _peerConnection!.onTrack = (RTCTrackEvent event) {
-        print('[WebRTC] Получен удаленный трек');
+        print('[WebRTC] Получен удаленный трек!');
         if (event.streams.isNotEmpty) {
           _remoteStream = event.streams.first;
           _safeAddToRemoteStream(_remoteStream);
+          print('[WebRTC] Удаленный стрим добавлен');
         }
       };
 
@@ -238,15 +280,41 @@ class WebRTCService {
         print('[WebRTC] Состояние соединения: $state');
 
         if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+          print('[WebRTC] УСПЕХ! Соединение установлено!');
           if (_currentCall != null) {
             _currentCall = _currentCall!.copyWith(status: CallStatus.active);
             _safeAddToCallState(_currentCall);
           }
         } else if (state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-            state ==
-                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+            RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+          print('[WebRTC] ОШИБКА! Соединение не удалось');
+          endCall('connection_failed');
+        } else if (state ==
+            RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          print('[WebRTC] Соединение разорвано');
           endCall('connection_lost');
+        }
+      };
+
+      _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+        print('[WebRTC] ICE состояние: $state');
+
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+            state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+          print('[WebRTC] ICE соединение установлено!');
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+          print('[WebRTC] ICE соединение провалилось!');
+        } else if (state ==
+            RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+          print('[WebRTC] ICE соединение разорвано');
+        }
+      };
+
+      _peerConnection!.onIceGatheringState = (RTCIceGatheringState state) {
+        print('[WebRTC] ICE gathering: $state');
+
+        if (state == RTCIceGatheringState.RTCIceGatheringStateComplete) {
+          print('[WebRTC] Все ICE кандидаты собраны');
         }
       };
 
@@ -259,7 +327,8 @@ class WebRTCService {
 
   Future<void> _handleIncomingCall(Map<String, dynamic> message) async {
     try {
-      print('[WebRTC] Входящий звонок');
+      print('[WebRTC] Входящий звонок от ${message['callerName']}');
+      print('[WebRTC] callId: ${message['callId']}');
 
       _currentCall = Call(
         id: message['callId'],
@@ -278,6 +347,8 @@ class WebRTCService {
       _currentCall = _currentCall!.copyWith(
         offer: message['offer'],
       );
+
+      print('[WebRTC] Звонок добавлен в состояние, ожидаем ответ пользователя');
     } catch (e) {
       print('[WebRTC] Ошибка обработки входящего звонка: $e');
     }
@@ -290,7 +361,7 @@ class WebRTCService {
         return;
       }
 
-      print('[WebRTC] Отвечаем на звонок');
+      print('[WebRTC] Отвечаем на звонок $callId');
 
       _currentCall = _currentCall!.copyWith(status: CallStatus.connecting);
       _safeAddToCallState(_currentCall);
@@ -302,17 +373,21 @@ class WebRTCService {
         _currentCall!.offer!['sdp'],
         _currentCall!.offer!['type'],
       );
+
+      print('[WebRTC] Устанавливаем remote description (offer)');
       await _peerConnection!.setRemoteDescription(offer);
       _isRemoteDescriptionSet = true;
 
       await _processIceCandidatesQueue();
 
+      print('[WebRTC] Создаём answer');
       final answer = await _peerConnection!.createAnswer(_constraints);
       await _peerConnection!.setLocalDescription(answer);
 
+      print('[WebRTC] Отправляем answer звонящему');
       WebSocketManager.instance.sendCallAnswer(callId, answer.toMap());
 
-      print('[WebRTC] Answer отправлен');
+      print('[WebRTC] Answer отправлен, ожидаем установки соединения');
     } catch (e) {
       print('[WebRTC] Ошибка ответа на звонок: $e');
       await endCall('error');
@@ -321,10 +396,10 @@ class WebRTCService {
 
   Future<void> _handleCallAnswer(Map<String, dynamic> message) async {
     try {
-      print('[WebRTC] Получен answer');
+      print('[WebRTC] Обрабатываем answer от получателя');
 
       if (_peerConnection == null) {
-        print('[WebRTC] Peer connection не существует');
+        print('[WebRTC] ОШИБКА: Peer connection не существует!');
         return;
       }
 
@@ -333,35 +408,42 @@ class WebRTCService {
         message['answer']['type'],
       );
 
+      print('[WebRTC] Устанавливаем remote description (answer)');
       await _peerConnection!.setRemoteDescription(answer);
       _isRemoteDescriptionSet = true;
 
+      print('[WebRTC] Answer применен, обрабатываем очередь ICE кандидатов');
       await _processIceCandidatesQueue();
 
       if (_currentCall != null) {
         _currentCall = _currentCall!.copyWith(status: CallStatus.connecting);
         _safeAddToCallState(_currentCall);
       }
+
+      print('[WebRTC] Answer обработан, ожидаем установки соединения');
     } catch (e) {
-      print('[WebRTC] Ошибка обработки answer: $e');
+      print('[WebRTC] ОШИБКА обработки answer: $e');
     }
   }
 
   Future<void> _handleIceCandidate(Map<String, dynamic> message) async {
     try {
-      print('[WebRTC] Получен ICE кандидат');
+      final candidateData = message['candidate'];
+      print('[WebRTC] Получен ICE кандидат от удаленного peer');
 
       final candidate = RTCIceCandidate(
-        message['candidate']['candidate'],
-        message['candidate']['sdpMid'],
-        message['candidate']['sdpMLineIndex'],
+        candidateData['candidate'],
+        candidateData['sdpMid'],
+        candidateData['sdpMLineIndex'],
       );
 
       if (_peerConnection != null && _isRemoteDescriptionSet) {
         await _peerConnection!.addCandidate(candidate);
+        print('[WebRTC] ICE кандидат добавлен');
       } else {
         _iceCandidatesQueue.add(candidate);
-        print('[WebRTC] ICE кандидат добавлен в очередь');
+        print(
+            '[WebRTC] ICE кандидат добавлен в очередь (remote description не установлен)');
       }
     } catch (e) {
       print('[WebRTC] Ошибка обработки ICE кандидата: $e');
@@ -369,10 +451,13 @@ class WebRTCService {
   }
 
   Future<void> _processIceCandidatesQueue() async {
-    if (_iceCandidatesQueue.isEmpty) return;
+    if (_iceCandidatesQueue.isEmpty) {
+      print('[WebRTC] Очередь ICE кандидатов пуста');
+      return;
+    }
 
     print(
-        '[WebRTC] Обработка очереди ICE кандидатов (${_iceCandidatesQueue.length})');
+        '[WebRTC] Обработка очереди ICE кандидатов (${_iceCandidatesQueue.length} шт.)');
 
     for (final candidate in _iceCandidatesQueue) {
       try {
@@ -383,6 +468,7 @@ class WebRTCService {
     }
 
     _iceCandidatesQueue.clear();
+    print('[WebRTC] Очередь ICE кандидатов обработана');
   }
 
   void _handleCallEnded(Map<String, dynamic> message) {
@@ -483,7 +569,6 @@ class WebRTCService {
   void _cleanup() {
     print('[WebRTC] Очистка ресурсов');
 
-    // Очистка локального стрима с обработкой ошибок
     try {
       if (_localStream != null) {
         _localStream!.getTracks().forEach((track) {
@@ -507,11 +592,9 @@ class WebRTCService {
     _localStream = null;
     _safeAddToLocalStream(null);
 
-    // Очистка удаленного стрима
     _remoteStream = null;
     _safeAddToRemoteStream(null);
 
-    // Закрытие peer connection с обработкой ошибок
     try {
       if (_peerConnection != null) {
         _peerConnection!.close();
@@ -521,8 +604,6 @@ class WebRTCService {
     }
 
     _peerConnection = null;
-
-    // Очистка очереди и флагов
     _iceCandidatesQueue.clear();
     _isRemoteDescriptionSet = false;
 
@@ -532,17 +613,14 @@ class WebRTCService {
   void dispose() {
     print('[WebRTC] Dispose сервиса');
 
-    // Очищаем ресурсы
     _cleanup();
 
-    // Отменяем подписку на WebSocket
     try {
       _wsSubscription?.cancel();
     } catch (e) {
       print('[WebRTC] Ошибка отмены подписки WebSocket: $e');
     }
 
-    // Закрываем контроллеры стримов
     try {
       _callStateController?.close();
     } catch (e) {
@@ -561,12 +639,9 @@ class WebRTCService {
       print('[WebRTC] Ошибка закрытия remoteStreamController: $e');
     }
 
-    // Обнуляем контроллеры
     _callStateController = null;
     _localStreamController = null;
     _remoteStreamController = null;
-
-    // Обнуляем текущий звонок
     _currentCall = null;
 
     print('[WebRTC] Dispose завершен');
