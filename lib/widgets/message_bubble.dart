@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../utils/app_colors.dart';
+import 'call_message_bubble.dart'; // ДОБАВЛЕН ИМПОРТ
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -16,6 +17,14 @@ class MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ДОБАВЛЕНО: Проверка на сообщение о звонке
+    if (message.isCallMessage) {
+      return CallMessageBubble(
+        message: message,
+        isMe: isMe,
+      );
+    }
+
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Align(
@@ -29,7 +38,6 @@ class MessageBubble extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            // Аватар для входящих сообщений
             if (!isMe)
               Padding(
                 padding: EdgeInsets.only(right: 8, bottom: 4),
@@ -61,7 +69,6 @@ class MessageBubble extends StatelessWidget {
                   ),
                 ),
               ),
-            // Пузырь сообщения
             Flexible(
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -82,7 +89,6 @@ class MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Имя отправителя для групповых чатов
                     if (!isMe && message.senderName != null)
                       Padding(
                         padding: EdgeInsets.only(bottom: 4),
@@ -95,7 +101,6 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // Контент сообщения
                     if (message.type == 'text')
                       Text(
                         message.content,
@@ -167,7 +172,6 @@ class MessageBubble extends StatelessWidget {
                         ),
                       ),
                     SizedBox(height: 4),
-                    // Время и статус
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

@@ -10,7 +10,7 @@ class Chat {
   final int unreadCount;
   final bool isOnline;
   final bool isPinned;
-  final bool isMuted; // Добавлено поле для отключения уведомлений
+  final bool isMuted;
   final List<String>? participants;
   final String? receiverId;
 
@@ -24,10 +24,47 @@ class Chat {
     this.unreadCount = 0,
     this.isOnline = false,
     this.isPinned = false,
-    this.isMuted = false, // По умолчанию уведомления включены
+    this.isMuted = false,
     this.participants,
     this.receiverId,
   });
+
+  // ДОБАВЛЕНО: Метод для получения ID другого участника (не текущего пользователя)
+  String? getOtherParticipantId(String currentUserId) {
+    print('[Chat.getOtherParticipantId] Текущий пользователь: $currentUserId');
+    print('[Chat.getOtherParticipantId] Участники: $participants');
+    print('[Chat.getOtherParticipantId] receiverId: $receiverId');
+
+    // Сначала проверяем поле receiverId (если есть)
+    if (receiverId != null &&
+        receiverId!.isNotEmpty &&
+        receiverId != currentUserId) {
+      print(
+          '[Chat.getOtherParticipantId] ✅ Используем receiverId: $receiverId');
+      return receiverId;
+    }
+
+    // Если receiverId нет или он равен текущему пользователю, ищем в participants
+    if (participants != null && participants!.isNotEmpty) {
+      for (var participantId in participants!) {
+        final cleanParticipantId = participantId.trim();
+        final cleanCurrentUserId = currentUserId.trim();
+
+        print(
+            '[Chat.getOtherParticipantId] Проверяем участника: "$cleanParticipantId" != "$cleanCurrentUserId"');
+
+        if (cleanParticipantId.isNotEmpty &&
+            cleanParticipantId != cleanCurrentUserId) {
+          print(
+              '[Chat.getOtherParticipantId] ✅ Найден другой участник: $cleanParticipantId');
+          return cleanParticipantId;
+        }
+      }
+    }
+
+    print('[Chat.getOtherParticipantId] ❌ Другой участник не найден');
+    return null;
+  }
 
   factory Chat.fromJson(Map<String, dynamic> json) {
     // Парсим participants если есть
@@ -116,7 +153,7 @@ class Chat {
 
   @override
   String toString() {
-    return 'Chat(id: $id, name: $name, type: $type, unreadCount: $unreadCount, isOnline: $isOnline, receiverId: $receiverId)';
+    return 'Chat(id: $id, name: $name, type: $type, unreadCount: $unreadCount, isOnline: $isOnline, receiverId: $receiverId, participants: $participants)';
   }
 
   @override

@@ -30,7 +30,7 @@ class _ChatViewState extends State<ChatView> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isTyping = false;
-  bool _isSending = false; // Переименовано из _isLoading
+  bool _isSending = false;
   bool _messagesLoaded = false;
   int _previousMessageCount = 0;
   Timer? _typingTimer;
@@ -89,16 +89,15 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _refreshMessages() async {
+    if (!mounted) return;
+
     try {
       final chatProvider = context.read<ChatProvider>();
-
-      // НЕ проверяем _isLoading - это позволяет обновлять в фоне
       final oldCount = chatProvider.messages.length;
 
       print(
           '[ChatView] 🔄 Автообновление: текущее количество сообщений: $oldCount');
 
-      // Загружаем сообщения БЕЗ установки флага _isLoading
       await chatProvider.loadMessages(widget.chat.id);
 
       final newCount = chatProvider.messages.length;
@@ -187,7 +186,6 @@ class _ChatViewState extends State<ChatView> {
       print(
           '[ChatView] ✅ Сообщение отправлено, принудительно обновляем список');
 
-      // Принудительно обновляем сообщения после отправки
       await chatProvider.loadMessages(widget.chat.id);
 
       if (mounted) {
@@ -234,19 +232,59 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _startCall(String callType) {
-    final receiverId = widget.chat.participants?.isNotEmpty == true
-        ? widget.chat.participants!.first
-        : '';
+    final chatProvider = context.read<ChatProvider>();
+    final currentUserId = chatProvider.currentUserId;
 
-    if (receiverId.isEmpty) {
+    print('[ChatView] 📞 Инициация звонка');
+    print('[ChatView] Текущий пользователь: $currentUserId');
+    print('[ChatView] Чат: ${widget.chat}');
+
+    if (currentUserId == null || currentUserId.isEmpty) {
+      print('[ChatView] ❌ Текущий пользователь не определен');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Не удалось определить получателя'),
+          content: Text('Ошибка: пользователь не авторизован'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // УЛУЧШЕНО: Используем метод из модели Chat
+    final receiverId = widget.chat.getOtherParticipantId(currentUserId);
+
+    print('[ChatView] Определен получатель звонка: $receiverId');
+
+    if (receiverId == null || receiverId.isEmpty) {
+      print('[ChatView] ❌ Не удалось определить получателя');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось определить получателя звонка'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // Проверяем что не звоним сами себе
+    if (receiverId == currentUserId) {
+      print('[ChatView] ❌ Попытка позвонить самому себе');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Нельзя позвонить самому себе'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
+
+    print('[ChatView] ✅ Открываем CallScreen');
+    print('[ChatView] - chatId: ${widget.chat.id}');
+    print('[ChatView] - receiverId: $receiverId');
+    print('[ChatView] - receiverName: ${widget.chat.name}');
+    print('[ChatView] - callType: $callType');
 
     Navigator.push(
       context,
@@ -429,7 +467,6 @@ class _ChatViewState extends State<ChatView> {
                   final messages = chatProvider.messages;
                   final isLoading = chatProvider.isLoading;
 
-                  // Автоматическая прокрутка при новых сообщениях
                   if (messages.length > _previousMessageCount &&
                       _previousMessageCount > 0) {
                     print(

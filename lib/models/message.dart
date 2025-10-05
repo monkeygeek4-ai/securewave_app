@@ -1,3 +1,7 @@
+// lib/models/message.dart
+
+import 'dart:convert';
+
 class Message {
   final String id;
   final String chatId;
@@ -5,14 +9,14 @@ class Message {
   final String? senderName;
   final String? senderAvatar;
   final String content;
-  final String type; // 'text', 'image', 'video', 'file', 'voice'
+  final String type; // 'text', 'image', 'video', 'file', 'voice', 'call'
   final String timestamp;
   final bool isRead;
   final bool isEdited;
   final String? replyToId;
   final String? mediaUrl;
   final Map<String, dynamic>? metadata;
-  final String? status; // 'отправлено', 'доставлено', 'прочитано'
+  final String? status;
   final int? readCount;
 
   Message({
@@ -33,7 +37,33 @@ class Message {
     this.readCount,
   });
 
+  // Геттеры для удобной работы со звонками
+  bool get isCallMessage => type == 'call';
+
+  String? get callType => metadata?['callType']; // 'audio' или 'video'
+
+  String? get callStatus => metadata?[
+      'callStatus']; // 'incoming', 'outgoing', 'missed', 'rejected', 'cancelled'
+
+  int? get callDuration => metadata?['callDuration']; // длительность в секундах
+
   factory Message.fromJson(Map<String, dynamic> json) {
+    // ИСПРАВЛЕНО: Правильный парсинг metadata
+    Map<String, dynamic>? parsedMetadata;
+    if (json['metadata'] != null) {
+      if (json['metadata'] is Map) {
+        parsedMetadata = Map<String, dynamic>.from(json['metadata']);
+      } else if (json['metadata'] is String) {
+        // Если metadata пришла как строка, парсим JSON
+        try {
+          parsedMetadata =
+              Map<String, dynamic>.from(jsonDecode(json['metadata']));
+        } catch (e) {
+          print('[Message] Ошибка парсинга metadata: $e');
+        }
+      }
+    }
+
     return Message(
       id: json['id']?.toString() ?? '',
       chatId: json['chatId']?.toString() ?? json['chat_id']?.toString() ?? '',
@@ -50,7 +80,7 @@ class Message {
       isEdited: json['isEdited'] ?? json['is_edited'] ?? false,
       replyToId: json['replyToId'] ?? json['reply_to_id'],
       mediaUrl: json['mediaUrl'] ?? json['media_url'],
-      metadata: json['metadata'],
+      metadata: parsedMetadata,
       status: json['status'],
       readCount: json['readCount'] ?? json['read_count'],
     );
@@ -109,6 +139,30 @@ class Message {
       metadata: metadata ?? this.metadata,
       status: status ?? this.status,
       readCount: readCount ?? this.readCount,
+    );
+  }
+
+  // Фабричный метод для создания сообщения о звонке
+  factory Message.createCallMessage({
+    required String chatId,
+    required String senderId,
+    required String callType, // 'audio' или 'video'
+    required String
+        callStatus, // 'incoming', 'outgoing', 'missed', 'rejected', 'cancelled'
+    int? callDuration,
+  }) {
+    return Message(
+      id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+      chatId: chatId,
+      senderId: senderId,
+      content: 'Звонок',
+      type: 'call',
+      timestamp: DateTime.now().toIso8601String(),
+      metadata: {
+        'callType': callType,
+        'callStatus': callStatus,
+        'callDuration': callDuration,
+      },
     );
   }
 }

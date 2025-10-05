@@ -50,9 +50,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       print('[ChatScreen] Приложение вернулось на передний план');
-      // Отмечаем сообщения как прочитанные
       context.read<ChatProvider>().markMessagesAsRead(widget.chat.id);
-      // Перезагружаем сообщения
       _refreshMessages();
     }
   }
@@ -67,7 +65,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _typingTimer?.cancel();
     _stopAutoRefresh();
 
-    // ВАЖНО: Сбрасываем currentChatId при выходе
     final chatProvider = context.read<ChatProvider>();
     if (chatProvider.currentChatId == widget.chat.id) {
       chatProvider.setCurrentChatId(null);
@@ -109,7 +106,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         print(
             '[ChatScreen] 🆕 НОВОЕ СООБЩЕНИЕ! Было: $oldCount, стало: $newCount');
 
-        // Отмечаем новые сообщения как прочитанные
         await chatProvider.markMessagesAsRead(widget.chat.id);
 
         if (mounted) {
@@ -142,12 +138,10 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
         '[ChatScreen] 📥 Первоначальная загрузка сообщений для чата: ${widget.chat.id}');
     final chatProvider = context.read<ChatProvider>();
 
-    // Устанавливаем текущий чат
     chatProvider.setCurrentChatId(widget.chat.id);
 
     await chatProvider.loadMessages(widget.chat.id);
 
-    // Отмечаем как прочитанные
     await chatProvider.markMessagesAsRead(widget.chat.id);
 
     print(
@@ -241,19 +235,59 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   }
 
   void _startCall(String callType) {
-    final receiverId = widget.chat.participants?.isNotEmpty == true
-        ? widget.chat.participants!.first
-        : '';
+    final chatProvider = context.read<ChatProvider>();
+    final currentUserId = chatProvider.currentUserId;
 
-    if (receiverId.isEmpty) {
+    print('[ChatScreen] 📞 Инициация звонка');
+    print('[ChatScreen] Текущий пользователь: $currentUserId');
+    print('[ChatScreen] Чат: ${widget.chat}');
+
+    if (currentUserId == null || currentUserId.isEmpty) {
+      print('[ChatScreen] ❌ Текущий пользователь не определен');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Не удалось определить получателя'),
+          content: Text('Ошибка: пользователь не авторизован'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // УЛУЧШЕНО: Используем метод из модели Chat
+    final receiverId = widget.chat.getOtherParticipantId(currentUserId);
+
+    print('[ChatScreen] Определен получатель звонка: $receiverId');
+
+    if (receiverId == null || receiverId.isEmpty) {
+      print('[ChatScreen] ❌ Не удалось определить получателя');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось определить получателя звонка'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    // Проверяем что не звоним сами себе
+    if (receiverId == currentUserId) {
+      print('[ChatScreen] ❌ Попытка позвонить самому себе');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Нельзя позвонить самому себе'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
+
+    print('[ChatScreen] ✅ Открываем CallScreen');
+    print('[ChatScreen] - chatId: ${widget.chat.id}');
+    print('[ChatScreen] - receiverId: $receiverId');
+    print('[ChatScreen] - receiverName: ${widget.chat.name}');
+    print('[ChatScreen] - callType: $callType');
 
     Navigator.push(
       context,
@@ -305,7 +339,6 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
 
     return WillPopScope(
       onWillPop: () async {
-        // При выходе отмечаем сообщения как прочитанные
         await context.read<ChatProvider>().markMessagesAsRead(widget.chat.id);
         return true;
       },

@@ -28,7 +28,6 @@ void main() {
           update: (_, auth, previous) {
             final chatProvider = previous ?? ChatProvider();
             if (auth.isAuthenticated && auth.currentUser != null) {
-              // Используем setCurrentUserId который принимает String
               chatProvider.setCurrentUserId(auth.currentUser!.id.toString());
             }
             return chatProvider;
@@ -177,6 +176,116 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
         });
       }
     });
+
+    // ДОБАВЛЕНО: Устанавливаем обработчик входящих звонков через WebSocket
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          final chatProvider = context.read<ChatProvider>();
+          chatProvider.setIncomingCallHandler(_handleIncomingCall);
+          print('[CallOverlay] ✅ Обработчик входящих звонков установлен');
+        } catch (e) {
+          print('[CallOverlay] ❌ Ошибка установки обработчика: $e');
+        }
+      }
+    });
+  }
+
+  // ДОБАВЛЕНО: Обработчик входящих звонков через WebSocket
+  void _handleIncomingCall(Map<String, dynamic> callData) {
+    if (!mounted) return;
+
+    print('[CallOverlay] 📞 Получен входящий звонок через WebSocket');
+    print('[CallOverlay] Данные звонка: $callData');
+
+    // Показываем диалог входящего звонка для мобильных устройств
+    final callerName =
+        callData['callerName'] ?? callData['caller_name'] ?? 'Неизвестный';
+    final callType = callData['callType'] ?? callData['call_type'] ?? 'audio';
+    final chatId =
+        callData['chatId']?.toString() ?? callData['chat_id']?.toString();
+    final callerId =
+        callData['callerId']?.toString() ?? callData['caller_id']?.toString();
+    final callerAvatar = callData['callerAvatar'] ?? callData['caller_avatar'];
+
+    if (chatId == null || callerId == null) {
+      print('[CallOverlay] ⚠️ Недостаточно данных для звонка');
+      return;
+    }
+
+    // Данные будут обработаны через WebRTCService и отобразятся через callState
+    // Этот метод нужен для дополнительной обработки на мобильных устройствах
+    print('[CallOverlay] ✅ Звонок будет обработан через WebRTCService');
+
+    // Для мобильных устройств можно показать дополнительное уведомление
+    _showMobileCallNotification(
+      callerName: callerName,
+      callType: callType,
+      chatId: chatId,
+      callerId: callerId,
+      callerAvatar: callerAvatar,
+    );
+  }
+
+  // ДОБАВЛЕНО: Уведомление для мобильных устройств
+  void _showMobileCallNotification({
+    required String callerName,
+    required String callType,
+    required String chatId,
+    required String callerId,
+    String? callerAvatar,
+  }) {
+    // Проверяем, не отображается ли уже overlay
+    if (_incomingCall != null) {
+      print('[CallOverlay] Overlay уже отображается');
+      return;
+    }
+
+    print('[CallOverlay] 📱 Показываем мобильное уведомление о звонке');
+
+    // Показываем SnackBar с кнопками для мобильных устройств
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: Duration(seconds: 30),
+        backgroundColor: Color(0xFF667EEA),
+        behavior: SnackBarBehavior.floating,
+        content: Row(
+          children: [
+            Icon(
+              callType == 'video' ? Icons.videocam : Icons.call,
+              color: Colors.white,
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Входящий ${callType == 'video' ? 'видео' : ''}звонок',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    callerName,
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'Открыть',
+          textColor: Colors.white,
+          onPressed: () {
+            // Уведомление будет показано через overlay
+          },
+        ),
+      ),
+    );
   }
 
   @override

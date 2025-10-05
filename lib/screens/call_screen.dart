@@ -6,8 +6,11 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'dart:js_util' as js_util;
+import 'package:provider/provider.dart';
 import '../models/call.dart';
+import '../models/message.dart';
 import '../services/webrtc_service.dart';
+import '../providers/chat_provider.dart';
 
 class CallScreen extends StatefulWidget {
   final Call? initialCall;
@@ -426,7 +429,57 @@ class _CallScreenState extends State<CallScreen> {
     if (_isDisposing) return;
 
     print('[CallScreen] Завершение звонка');
+
+    // Вычисляем длительность
+    final duration = _callDuration.inSeconds;
+    final isVideo =
+        _currentCall?.callType == 'video' || widget.callType == 'video';
+    final chatId = widget.chatId ?? _currentCall?.chatId;
+
+    // ВАЖНО: Определяем кто инициатор звонка
+    final isInitiator = _currentCall?.status != CallStatus.incoming;
+    final wasAccepted = _currentCall?.status == CallStatus.active;
+
     _webrtcService.endCall();
+
+    // Создаем сообщение о звонке
+    if (mounted && chatId != null) {
+      try {
+        final chatProvider = context.read<ChatProvider>();
+        String callStatus;
+
+        // Определяем статус звонка
+        if (wasAccepted && duration > 0) {
+          // Звонок состоялся
+          callStatus = isInitiator ? 'outgoing' : 'incoming';
+        } else if (isInitiator) {
+          // Инициатор звонка, но звонок не состоялся
+          if (_currentCall?.status == CallStatus.declined) {
+            callStatus = 'rejected'; // Отклонен
+          } else {
+            callStatus = 'cancelled'; // Отменен
+          }
+        } else {
+          // Получатель звонка, но не ответил
+          callStatus = 'missed'; // Пропущенный
+        }
+
+        final callMessage = Message.createCallMessage(
+          chatId: chatId,
+          senderId: chatProvider.currentUserId ?? '',
+          callType: isVideo ? 'video' : 'audio',
+          callStatus: callStatus,
+          callDuration: wasAccepted ? duration : null,
+        );
+
+        chatProvider.sendCallMessage(callMessage);
+        print(
+            '[CallScreen] Сообщение о звонке создано: статус=$callStatus, длительность=$duration секунд');
+      } catch (e) {
+        print('[CallScreen] Ошибка создания сообщения о звонке: $e');
+      }
+    }
+
     _cleanupAndClose();
   }
 

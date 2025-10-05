@@ -165,7 +165,7 @@ class ApiService {
 
   bool get hasToken => _authToken != null && _authToken!.isNotEmpty;
   String? get currentToken => _authToken;
-  String? get token => _authToken; // Добавлен геттер для совместимости
+  String? get token => _authToken;
 
   Future<bool> waitForToken(
       {Duration timeout = const Duration(seconds: 2)}) async {
@@ -359,7 +359,6 @@ class ApiService {
     }
   }
 
-  // НОВЫЙ МЕТОД: Создание группового чата
   Future<Chat?> createGroupChat(
       String groupName, List<String> participantIds) async {
     try {
@@ -422,20 +421,43 @@ class ApiService {
     }
   }
 
-  Future<Message?> sendMessage(String chatId, String content) async {
+  // ОБНОВЛЕНО: Метод sendMessage с поддержкой type и metadata
+  Future<Message?> sendMessage(
+    String chatId,
+    String content, {
+    String type = 'text',
+    Map<String, dynamic>? metadata,
+  }) async {
     try {
+      _log('📤 Отправка сообщения:');
+      _log('  chatId: $chatId');
+      _log('  content: $content');
+      _log('  type: $type');
+      _log('  metadata: $metadata');
+
       final response = await _dio.post('/messages/send', data: {
         'chatId': chatId,
         'content': content,
+        'type': type,
+        if (metadata != null) 'metadata': metadata,
       });
 
+      _log('📥 Ответ от сервера [${response.statusCode}]:');
+      _log('  ${response.data}');
+
       if (response.statusCode == 200) {
-        return Message.fromJson(response.data);
+        final message = Message.fromJson(response.data);
+        _log('✅ Распарсенное сообщение:');
+        _log('  ID: ${message.id}');
+        _log('  Type: ${message.type}');
+        _log('  Metadata: ${message.metadata}');
+        _log('  isCallMessage: ${message.isCallMessage}');
+        return message;
       }
 
       return null;
     } catch (e) {
-      _log('Ошибка отправки сообщения: $e');
+      _log('❌ Ошибка отправки сообщения: $e');
       return null;
     }
   }

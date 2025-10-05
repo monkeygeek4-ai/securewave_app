@@ -24,6 +24,9 @@ class ChatProvider with ChangeNotifier {
   StreamSubscription? _focusSubscription;
   StreamSubscription? _blurSubscription;
 
+  // ДОБАВЛЕНО: Callback для входящих звонков
+  Function(Map<String, dynamic>)? _onIncomingCall;
+
   List<Chat> get chats => _chats;
   List<Message> get messages => _messages;
   bool get isLoading => _isLoading;
@@ -48,6 +51,12 @@ class ChatProvider with ChangeNotifier {
 
   void _subscribeToAppLifecycle() {
     _log('Подписка на lifecycle events (пока не реализована)');
+  }
+
+  // ДОБАВЛЕНО: Метод для установки обработчика входящих звонков
+  void setIncomingCallHandler(Function(Map<String, dynamic>) handler) {
+    _onIncomingCall = handler;
+    _log('Обработчик входящих звонков установлен');
   }
 
   void _handleWebSocketMessage(Map<String, dynamic> data) {
@@ -87,8 +96,23 @@ class ChatProvider with ChangeNotifier {
       case 'auth_success':
         loadChats();
         break;
+      // ДОБАВЛЕНО: Обработка входящих звонков
+      case 'incoming_call':
+        _handleIncomingCall(data);
+        break;
       default:
         _log('Неизвестный тип WebSocket сообщения: $type');
+    }
+  }
+
+  // ДОБАВЛЕНО: Обработчик входящих звонков
+  void _handleIncomingCall(Map<String, dynamic> data) {
+    _log('Входящий звонок: $data');
+
+    if (_onIncomingCall != null) {
+      _onIncomingCall!(data);
+    } else {
+      _log('⚠️ Обработчик входящих звонков не установлен');
     }
   }
 
@@ -96,7 +120,6 @@ class ChatProvider with ChangeNotifier {
     try {
       _log('_handleNewMessage вызван с данными: $data');
 
-      // Попробуем разные варианты структуры данных
       Map<String, dynamic>? messageData;
 
       if (data.containsKey('message')) {
@@ -108,7 +131,6 @@ class ChatProvider with ChangeNotifier {
             ? data['data'] as Map<String, dynamic>
             : null;
       } else {
-        // Возможно само data является сообщением
         messageData = data;
       }
 
@@ -124,7 +146,6 @@ class ChatProvider with ChangeNotifier {
       _log(
           'Текущий чат: $_currentChatId, Сообщение для чата: ${message.chatId}');
 
-      // Добавляем сообщение только если это текущий чат
       if (_currentChatId == message.chatId) {
         final existingIndex = _messages.indexWhere((m) => m.id == message.id);
 
@@ -141,7 +162,6 @@ class ChatProvider with ChangeNotifier {
             '⚠️ Сообщение НЕ для текущего чата, пропускаем добавление в _messages');
       }
 
-      // Обновляем информацию в списке чатов
       final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
       if (chatIndex != -1) {
         final isCurrentChat = _currentChatId == message.chatId;
@@ -157,7 +177,6 @@ class ChatProvider with ChangeNotifier {
         _log('✅ Обновлен чат в списке');
       }
 
-      // КРИТИЧНО: Уведомляем слушателей
       _log('🔔 Вызываем notifyListeners()');
       notifyListeners();
 
@@ -240,7 +259,6 @@ class ChatProvider with ChangeNotifier {
 
   void _handleMessageSent(Map<String, dynamic> data) {
     _log('Подтверждение отправки сообщения: $data');
-    // Может быть это и есть новое сообщение?
     _handleNewMessage(data);
   }
 
@@ -318,13 +336,15 @@ class ChatProvider with ChangeNotifier {
     try {
       _log('Загрузка сообщений для чата: $chatId');
       _messages = await _api.getMessages(chatId);
-      _log('Загружено ${_messages.length} сообщений');
+      _log('✅ Загружено ${_messages.length} сообщений');
       _isLoading = false;
       notifyListeners();
-    } catch (e) {
-      _log('Ошибка загрузки сообщений: $e');
+    } catch (e, stackTrace) {
+      _log('❌ ОШИБКА загрузки сообщений: $e');
+      _log('Stack trace: $stackTrace');
       _errorMessage = 'Не удалось загрузить сообщения';
       _isLoading = false;
+      _messages = [];
       notifyListeners();
     }
   }
@@ -374,6 +394,53 @@ class ChatProvider with ChangeNotifier {
       _log('Ошибка отправки сообщения: $e');
       _errorMessage = 'Не удалось отправить сообщение';
       notifyListeners();
+    }
+  }
+
+  Future<void> sendCallMessage(Message callMessage) async {
+    try {
+      _log('📞 Отправка сообщения о звонке');
+      _log('  chatId: ${callMessage.chatId}');
+      _log('  type: ${callMessage.type}');
+      _log('  content: ${callMessage.content}');
+      _log('  metadata: ${callMessage.metadata}');
+
+      final message = await _api.sendMessage(
+        callMessage.chatId,
+        callMessage.content,
+        type: callMessage.type,
+        metadata: callMessage.metadata,
+      );
+
+      if (message != null) {
+        _log('✅ Сообщение о звонке получено от сервера:');
+        _log('  ID: ${message.id}');
+        _log('  Type: ${message.type}');
+        _log('  Metadata: ${message.metadata}');
+        _log('  isCallMessage: ${message.isCallMessage}');
+
+        if (_currentChatId == callMessage.chatId) {
+          _messages.add(message);
+          _log('Сообщение о звонке добавлено в чат');
+        }
+
+        final chatIndex = _chats.indexWhere((c) => c.id == callMessage.chatId);
+        if (chatIndex != -1) {
+          _chats[chatIndex] = _chats[chatIndex].copyWith(
+            lastMessage: message.content,
+            lastMessageTime: DateTime.parse(message.timestamp),
+          );
+
+          final chat = _chats.removeAt(chatIndex);
+          _chats.insert(0, chat);
+        }
+
+        notifyListeners();
+      } else {
+        _log('❌ Сервер вернул null');
+      }
+    } catch (e) {
+      _log('❌ Ошибка отправки сообщения о звонке: $e');
     }
   }
 
