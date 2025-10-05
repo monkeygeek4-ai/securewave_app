@@ -37,24 +37,22 @@ class Message {
     this.readCount,
   });
 
-  // Геттеры для удобной работы со звонками
+  // Геттеры для удобной работы со звонками (БЕЗ ОТЛАДКИ)
   bool get isCallMessage => type == 'call';
 
-  String? get callType => metadata?['callType']; // 'audio' или 'video'
+  String? get callType => metadata?['callType'];
 
-  String? get callStatus => metadata?[
-      'callStatus']; // 'incoming', 'outgoing', 'missed', 'rejected', 'cancelled'
+  String? get callStatus => metadata?['callStatus'];
 
-  int? get callDuration => metadata?['callDuration']; // длительность в секундах
+  int? get callDuration => metadata?['callDuration'];
 
   factory Message.fromJson(Map<String, dynamic> json) {
-    // ИСПРАВЛЕНО: Правильный парсинг metadata
+    // Парсинг metadata
     Map<String, dynamic>? parsedMetadata;
     if (json['metadata'] != null) {
       if (json['metadata'] is Map) {
         parsedMetadata = Map<String, dynamic>.from(json['metadata']);
       } else if (json['metadata'] is String) {
-        // Если metadata пришла как строка, парсим JSON
         try {
           parsedMetadata =
               Map<String, dynamic>.from(jsonDecode(json['metadata']));
@@ -64,7 +62,7 @@ class Message {
       }
     }
 
-    return Message(
+    final message = Message(
       id: json['id']?.toString() ?? '',
       chatId: json['chatId']?.toString() ?? json['chat_id']?.toString() ?? '',
       senderId:
@@ -84,6 +82,8 @@ class Message {
       status: json['status'],
       readCount: json['readCount'] ?? json['read_count'],
     );
+
+    return message;
   }
 
   Map<String, dynamic> toJson() {

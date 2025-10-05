@@ -6,6 +6,7 @@ import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'dart:js_util' as js_util;
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../models/call.dart';
 import '../models/message.dart';
@@ -78,16 +79,27 @@ class _CallScreenState extends State<CallScreen> {
       return;
     }
 
-    _initializeCall();
-    _setupMediaElements();
+    // ВАЖНО: Подписываемся на stream ПЕРЕД инициализацией звонка
     _listenToStreams();
+    _setupMediaElements();
+    _initializeCall();
   }
 
   void _initializeCall() {
+    print('[CallScreen] ═══════════════════════════════════');
+    print('[CallScreen] 🔧 Инициализация звонка');
+
     if (widget.initialCall != null) {
+      print('[CallScreen] 📞 Использую initialCall из виджета');
+      print('[CallScreen] Status: ${widget.initialCall!.status}');
       _currentCall = widget.initialCall;
     } else {
+      print('[CallScreen] 📞 Создаю новый исходящий звонок');
       final callId = 'call-${DateTime.now().millisecondsSinceEpoch}';
+      print('[CallScreen] CallId: $callId');
+      print('[CallScreen] ChatId: ${widget.chatId}');
+      print('[CallScreen] ReceiverId: ${widget.receiverId}');
+
       _webrtcService.startCall(
         callId: callId,
         chatId: widget.chatId!,
@@ -95,7 +107,11 @@ class _CallScreenState extends State<CallScreen> {
         receiverName: widget.receiverName ?? 'Неизвестный',
         callType: widget.callType ?? 'audio',
       );
+
+      print('[CallScreen] ✅ startCall вызван, ожидаем обновление через stream');
     }
+
+    print('[CallScreen] ═══════════════════════════════════');
   }
 
   void _setupMediaElements() {
@@ -181,6 +197,8 @@ class _CallScreenState extends State<CallScreen> {
   void _listenToStreams() {
     _callStateSubscription = _webrtcService.callState.listen((call) {
       if (_isDisposing || !mounted) return;
+
+      print('[CallScreen] 🔔 Получено обновление callState: ${call?.status}');
 
       setState(() {
         _currentCall = call;
@@ -541,6 +559,24 @@ class _CallScreenState extends State<CallScreen> {
     final isCalling = _currentCall?.status == CallStatus.calling;
     final isConnecting = _currentCall?.status == CallStatus.connecting;
 
+    // УСИЛЕННАЯ ОТЛАДКА
+    print('═══════════════════════════════════════════════');
+    print('[CallScreen] 🎨 BUILD вызван');
+    print('[CallScreen] _currentCall != null: ${_currentCall != null}');
+    if (_currentCall != null) {
+      print('[CallScreen] _currentCall.id: ${_currentCall!.id}');
+      print('[CallScreen] _currentCall.status: ${_currentCall!.status}');
+      print('[CallScreen] _currentCall.callType: ${_currentCall!.callType}');
+    }
+    print('[CallScreen] isIncoming: $isIncoming');
+    print('[CallScreen] isActive: $isActive');
+    print('[CallScreen] isCalling: $isCalling');
+    print('[CallScreen] isConnecting: $isConnecting');
+    print(
+        '[CallScreen] Показать кнопки (isActive || isCalling || isConnecting): ${isActive || isCalling || isConnecting}');
+    print('[CallScreen] Показать входящие (isIncoming): $isIncoming');
+    print('═══════════════════════════════════════════════');
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -553,10 +589,12 @@ class _CallScreenState extends State<CallScreen> {
         child: SafeArea(
           child: Stack(
             children: [
+              // Удаленное видео на весь экран
               if (isVideo && (isActive || isConnecting) && _remoteVideo != null)
                 Positioned.fill(
                   child: HtmlElementView(viewType: _remoteVideoViewId),
                 ),
+              // Информация о звонке
               Positioned(
                 top: 0,
                 left: 0,
@@ -617,7 +655,10 @@ class _CallScreenState extends State<CallScreen> {
                   ),
                 ),
               ),
-              if (isVideo && (isActive || isConnecting) && _localVideo != null)
+              // Локальное видео (маленькое окно)
+              if (isVideo &&
+                  (isActive || isConnecting || isCalling) &&
+                  _localVideo != null)
                 Positioned(
                   top: 50,
                   right: 20,
@@ -639,6 +680,7 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                   ),
                 ),
+              // Кнопки управления
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -658,42 +700,50 @@ class _CallScreenState extends State<CallScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Кнопки для активного звонка или во время вызова
                       if (isActive || isCalling || isConnecting) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _CallButton(
-                              icon: _isMuted ? Icons.mic_off : Icons.mic,
-                              label: _isMuted ? 'Вкл. микр.' : 'Выкл. микр.',
-                              backgroundColor:
-                                  _isMuted ? Colors.white24 : Colors.white12,
-                              onPressed: _toggleMute,
-                            ),
-                            if (isVideo)
+                        // Показываем кнопки управления только для активного звонка
+                        if (isActive) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
                               _CallButton(
-                                icon: _isVideoOff
-                                    ? Icons.videocam_off
-                                    : Icons.videocam,
-                                label:
-                                    _isVideoOff ? 'Вкл. видео' : 'Выкл. видео',
-                                backgroundColor: _isVideoOff
+                                icon: _isMuted
+                                    ? FontAwesomeIcons.microphoneSlash
+                                    : FontAwesomeIcons.microphone,
+                                label: _isMuted ? 'Вкл. микр.' : 'Выкл. микр.',
+                                backgroundColor:
+                                    _isMuted ? Colors.white24 : Colors.white12,
+                                onPressed: _toggleMute,
+                              ),
+                              if (isVideo)
+                                _CallButton(
+                                  icon: _isVideoOff
+                                      ? FontAwesomeIcons.videoSlash
+                                      : FontAwesomeIcons.video,
+                                  label: _isVideoOff
+                                      ? 'Вкл. видео'
+                                      : 'Выкл. видео',
+                                  backgroundColor: _isVideoOff
+                                      ? Colors.white24
+                                      : Colors.white12,
+                                  onPressed: _toggleVideo,
+                                ),
+                              _CallButton(
+                                icon: _isSpeakerOn
+                                    ? FontAwesomeIcons.volumeHigh
+                                    : FontAwesomeIcons.volumeOff,
+                                label: _isSpeakerOn ? 'Динамик' : 'Наушники',
+                                backgroundColor: _isSpeakerOn
                                     ? Colors.white24
                                     : Colors.white12,
-                                onPressed: _toggleVideo,
+                                onPressed: _toggleSpeaker,
                               ),
-                            _CallButton(
-                              icon: _isSpeakerOn
-                                  ? Icons.volume_up
-                                  : Icons.volume_off,
-                              label: _isSpeakerOn ? 'Динамик' : 'Наушники',
-                              backgroundColor: _isSpeakerOn
-                                  ? Colors.white24
-                                  : Colors.white12,
-                              onPressed: _toggleSpeaker,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 40),
+                            ],
+                          ),
+                          SizedBox(height: 40),
+                        ],
+                        // Кнопка завершения звонка (всегда видна)
                         GestureDetector(
                           onTap: _endCall,
                           child: Container(
@@ -702,19 +752,28 @@ class _CallScreenState extends State<CallScreen> {
                             decoration: BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.red.withOpacity(0.4),
+                                  blurRadius: 20,
+                                  spreadRadius: 2,
+                                ),
+                              ],
                             ),
                             child: Icon(
-                              Icons.call_end,
+                              FontAwesomeIcons.phoneSlash,
                               color: Colors.white,
                               size: 35,
                             ),
                           ),
                         ),
                       ],
+                      // Кнопки для входящего звонка
                       if (isIncoming) ...[
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
+                            // Кнопка отклонить
                             GestureDetector(
                               onTap: _declineCall,
                               child: Container(
@@ -723,15 +782,23 @@ class _CallScreenState extends State<CallScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.red,
                                   shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.4),
+                                      blurRadius: 20,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
                                 ),
                                 child: Icon(
-                                  Icons.call_end,
+                                  FontAwesomeIcons.phoneSlash,
                                   color: Colors.white,
                                   size: 35,
                                 ),
                               ),
                             ),
                             SizedBox(width: 100),
+                            // Кнопка принять
                             GestureDetector(
                               onTap: _acceptCall,
                               child: Container(
@@ -740,6 +807,13 @@ class _CallScreenState extends State<CallScreen> {
                                 decoration: BoxDecoration(
                                   color: Colors.green,
                                   shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.green.withOpacity(0.4),
+                                      blurRadius: 20,
+                                      spreadRadius: 2,
+                                    ),
+                                  ],
                                 ),
                                 child: Icon(
                                   isVideo ? Icons.videocam : Icons.call,

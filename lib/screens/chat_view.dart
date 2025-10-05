@@ -39,7 +39,6 @@ class _ChatViewState extends State<ChatView> {
   @override
   void initState() {
     super.initState();
-    print('[ChatView] Инициализация для чата: ${widget.chat.id}');
     _messageController.addListener(_onTextChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -52,8 +51,6 @@ class _ChatViewState extends State<ChatView> {
   void didUpdateWidget(ChatView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.chat.id != widget.chat.id) {
-      print(
-          '[ChatView] Чат изменился с ${oldWidget.chat.id} на ${widget.chat.id}');
       _messagesLoaded = false;
       _previousMessageCount = 0;
       _stopAutoRefresh();
@@ -79,13 +76,11 @@ class _ChatViewState extends State<ChatView> {
         _refreshMessages();
       }
     });
-    print('[ChatView] ✅ Автообновление запущено (каждые 2 сек)');
   }
 
   void _stopAutoRefresh() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    print('[ChatView] ❌ Автообновление остановлено');
   }
 
   Future<void> _refreshMessages() async {
@@ -95,27 +90,18 @@ class _ChatViewState extends State<ChatView> {
       final chatProvider = context.read<ChatProvider>();
       final oldCount = chatProvider.messages.length;
 
-      print(
-          '[ChatView] 🔄 Автообновление: текущее количество сообщений: $oldCount');
-
       await chatProvider.loadMessages(widget.chat.id);
 
       final newCount = chatProvider.messages.length;
 
-      if (newCount > oldCount) {
-        print(
-            '[ChatView] 🆕 НОВОЕ СООБЩЕНИЕ! Было: $oldCount, стало: $newCount');
-        if (mounted) {
-          setState(() {
-            _previousMessageCount = newCount;
-          });
-          _scrollToBottom();
-        }
-      } else {
-        print('[ChatView] ⚪ Новых сообщений нет ($newCount)');
+      if (newCount > oldCount && mounted) {
+        setState(() {
+          _previousMessageCount = newCount;
+        });
+        _scrollToBottom();
       }
     } catch (e) {
-      print('[ChatView] ❌ Ошибка автообновления: $e');
+      // Игнорируем ошибки автообновления
     }
   }
 
@@ -126,13 +112,8 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _loadMessages() async {
-    if (_messagesLoaded) {
-      print('[ChatView] ⏭️ Сообщения уже загружены, пропускаем');
-      return;
-    }
+    if (_messagesLoaded) return;
 
-    print(
-        '[ChatView] 📥 Первоначальная загрузка сообщений для чата: ${widget.chat.id}');
     final chatProvider = context.read<ChatProvider>();
 
     if (chatProvider.currentChatId != widget.chat.id) {
@@ -140,9 +121,6 @@ class _ChatViewState extends State<ChatView> {
     }
 
     await chatProvider.loadMessages(widget.chat.id);
-
-    print(
-        '[ChatView] ✅ Первоначальная загрузка завершена: ${chatProvider.messages.length} сообщений');
 
     if (mounted) {
       setState(() {
@@ -179,13 +157,8 @@ class _ChatViewState extends State<ChatView> {
 
     try {
       final chatProvider = context.read<ChatProvider>();
-      print('[ChatView] 📤 Отправка сообщения...');
 
       await chatProvider.sendMessage(text, chatId: widget.chat.id);
-
-      print(
-          '[ChatView] ✅ Сообщение отправлено, принудительно обновляем список');
-
       await chatProvider.loadMessages(widget.chat.id);
 
       if (mounted) {
@@ -196,7 +169,6 @@ class _ChatViewState extends State<ChatView> {
         _scrollToBottom();
       }
     } catch (e) {
-      print('[ChatView] ❌ Ошибка отправки сообщения: $e');
       if (mounted) {
         setState(() {
           _isSending = false;
@@ -235,12 +207,7 @@ class _ChatViewState extends State<ChatView> {
     final chatProvider = context.read<ChatProvider>();
     final currentUserId = chatProvider.currentUserId;
 
-    print('[ChatView] 📞 Инициация звонка');
-    print('[ChatView] Текущий пользователь: $currentUserId');
-    print('[ChatView] Чат: ${widget.chat}');
-
     if (currentUserId == null || currentUserId.isEmpty) {
-      print('[ChatView] ❌ Текущий пользователь не определен');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Ошибка: пользователь не авторизован'),
@@ -250,14 +217,9 @@ class _ChatViewState extends State<ChatView> {
       return;
     }
 
-    // УЛУЧШЕНО: Используем метод из модели Chat
     final receiverId = widget.chat.getOtherParticipantId(currentUserId);
 
-    print('[ChatView] Определен получатель звонка: $receiverId');
-
     if (receiverId == null || receiverId.isEmpty) {
-      print('[ChatView] ❌ Не удалось определить получателя');
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Не удалось определить получателя звонка'),
@@ -268,9 +230,7 @@ class _ChatViewState extends State<ChatView> {
       return;
     }
 
-    // Проверяем что не звоним сами себе
     if (receiverId == currentUserId) {
-      print('[ChatView] ❌ Попытка позвонить самому себе');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Нельзя позвонить самому себе'),
@@ -279,12 +239,6 @@ class _ChatViewState extends State<ChatView> {
       );
       return;
     }
-
-    print('[ChatView] ✅ Открываем CallScreen');
-    print('[ChatView] - chatId: ${widget.chat.id}');
-    print('[ChatView] - receiverId: $receiverId');
-    print('[ChatView] - receiverName: ${widget.chat.name}');
-    print('[ChatView] - callType: $callType');
 
     Navigator.push(
       context,
@@ -469,15 +423,11 @@ class _ChatViewState extends State<ChatView> {
 
                   if (messages.length > _previousMessageCount &&
                       _previousMessageCount > 0) {
-                    print(
-                        '[ChatView] 📜 Обнаружено новое сообщение в UI, прокручиваем вниз');
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _previousMessageCount = messages.length;
                       _scrollToBottom();
                     });
                   }
-
-                  print('[ChatView] 🎨 Рендерим ${messages.length} сообщений');
 
                   if (isLoading && messages.isEmpty && !_messagesLoaded) {
                     return Center(

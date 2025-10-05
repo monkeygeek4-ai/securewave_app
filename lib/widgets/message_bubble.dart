@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../utils/app_colors.dart';
-import 'call_message_bubble.dart'; // ДОБАВЛЕН ИМПОРТ
 
 class MessageBubble extends StatelessWidget {
   final Message message;
@@ -15,16 +14,68 @@ class MessageBubble extends StatelessWidget {
     required this.isMe,
   }) : super(key: key);
 
+  // Получаем текст статуса звонка
+  String _getCallStatusText() {
+    final status = message.callStatus?.toLowerCase() ?? '';
+
+    switch (status) {
+      case 'outgoing':
+        return 'Исходящий звонок';
+      case 'incoming':
+        return 'Входящий звонок';
+      case 'cancelled':
+      case 'canceled':
+        return 'Отменен';
+      case 'missed':
+        return 'Пропущенный';
+      case 'rejected':
+      case 'declined':
+        return 'Отклонен';
+      case 'ended':
+        return isMe ? 'Исходящий звонок' : 'Входящий звонок';
+      default:
+        return 'Звонок';
+    }
+  }
+
+  // Получаем иконку для звонка
+  IconData _getCallIcon() {
+    final status = message.callStatus?.toLowerCase() ?? '';
+
+    switch (status) {
+      case 'ended':
+        return Icons.check_circle;
+      case 'cancelled':
+      case 'canceled':
+      case 'missed':
+        return Icons.phone_missed;
+      case 'declined':
+        return Icons.cancel;
+      default:
+        return message.callType == 'video' ? Icons.videocam : Icons.call;
+    }
+  }
+
+  // Получаем цвет для статуса звонка
+  Color _getCallStatusColor(BuildContext context) {
+    final status = message.callStatus?.toLowerCase() ?? '';
+
+    switch (status) {
+      case 'ended':
+        return AppColors.online;
+      case 'cancelled':
+      case 'canceled':
+      case 'missed':
+        return Colors.orange;
+      case 'declined':
+        return Colors.red;
+      default:
+        return isMe ? Colors.white : AppColors.primaryPurple;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // ДОБАВЛЕНО: Проверка на сообщение о звонке
-    if (message.isCallMessage) {
-      return CallMessageBubble(
-        message: message,
-        isMe: isMe,
-      );
-    }
-
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Align(
@@ -101,6 +152,7 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                    // Контент сообщения
                     if (message.type == 'text')
                       Text(
                         message.content,
@@ -111,6 +163,46 @@ class MessageBubble extends StatelessWidget {
                           fontSize: 15,
                           height: 1.4,
                         ),
+                      )
+                    else if (message.type == 'call')
+                      // НОВЫЙ БЛОК: Отображение звонков
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _getCallIcon(),
+                            size: 20,
+                            color: _getCallStatusColor(context),
+                          ),
+                          SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _getCallStatusText(),
+                                style: TextStyle(
+                                  color: isMe
+                                      ? Colors.white
+                                      : AppColors.getTextColor(context),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              if (message.callDuration != null &&
+                                  message.callDuration! > 0)
+                                Text(
+                                  _formatDuration(message.callDuration!),
+                                  style: TextStyle(
+                                    color: isMe
+                                        ? Colors.white.withOpacity(0.8)
+                                        : AppColors.getSecondaryTextColor(
+                                            context),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
                       )
                     else if (message.type == 'image' &&
                         message.mediaUrl != null)
@@ -242,5 +334,13 @@ class MessageBubble extends StatelessWidget {
     } catch (e) {
       return '';
     }
+  }
+
+  // Форматирование длительности звонка
+  String _formatDuration(int seconds) {
+    final duration = Duration(seconds: seconds);
+    final minutes = duration.inMinutes;
+    final secs = duration.inSeconds % 60;
+    return '${minutes}:${secs.toString().padLeft(2, '0')}';
   }
 }
