@@ -1,9 +1,9 @@
 // lib/main.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import 'dart:html' as html;
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
@@ -15,8 +15,35 @@ import 'services/webrtc_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
+// ИСПРАВЛЕНО: Условный импорт для веб-версии
+String? _checkInviteLink() {
+  if (kIsWeb) {
+    try {
+      // Для веб используем dart:html
+      final html = Uri.base;
+      print('[Init] Текущий URL: ${html.toString()}');
+      print('[Init] Путь: ${html.path}');
+      print('[Init] Сегменты пути: ${html.pathSegments}');
+
+      if (html.pathSegments.isNotEmpty && html.pathSegments.length >= 2) {
+        if (html.pathSegments[0] == 'invite') {
+          final inviteCode = html.pathSegments[1];
+          print('[Init] ✅ Обнаружен инвайт-код: $inviteCode');
+          return inviteCode;
+        }
+      }
+    } catch (e) {
+      print('[Init] Ошибка при проверке URL: $e');
+    }
+  }
+  return null;
+}
+
 void main() {
-  print('[Main] Запуск приложения');
+  print('[Main] ========================================');
+  print('[Main] Запуск приложения SecureWave');
+  print('[Main] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
+  print('[Main] ========================================');
 
   runApp(
     MultiProvider(
@@ -70,7 +97,7 @@ class MyApp extends StatelessWidget {
   }
 
   Widget _buildHome(AuthProvider authProvider, BuildContext context) {
-    // Проверяем инвайт-код
+    // Проверяем инвайт-код (только для веб)
     String? inviteCode = _checkInviteLink();
     if (inviteCode != null) {
       return InviteRegisterScreen(inviteCode: inviteCode);
@@ -89,21 +116,24 @@ class MyApp extends StatelessWidget {
 
     // Если пользователь авторизован
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+      print('[Init] ========================================');
       print(
           '[Init] Пользователь авторизован: ${authProvider.currentUser?.username}');
+      print('[Init] User ID: ${authProvider.currentUser?.id}');
+      print('[Init] ========================================');
 
-      // Инициализация WebRTC
+      // КРИТИЧЕСКИ ВАЖНО: Инициализация WebRTC для входящих звонков
       WebRTCService.instance.initialize(authProvider.currentUser!.id).then((_) {
-        print('[Init] WebRTC успешно инициализирован');
+        print('[Init] ✅ WebRTC успешно инициализирован');
       }).catchError((e) {
-        print('[Init] Ошибка инициализации WebRTC: $e');
+        print('[Init] ❌ Ошибка инициализации WebRTC: $e');
       });
 
       // Загружаем чаты
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final chatProvider = context.read<ChatProvider>();
         print(
-            '[Init] Загружаем чаты для пользователя ${authProvider.currentUser!.id}');
+            '[Init] 📨 Загружаем чаты для пользователя ${authProvider.currentUser!.id}');
         chatProvider.loadChats();
       });
 
@@ -111,30 +141,8 @@ class MyApp extends StatelessWidget {
     }
 
     // Показываем экран входа
-    print('[Init] Пользователь не авторизован, показываем экран входа');
+    print('[Init] ℹ️ Пользователь не авторизован, показываем экран входа');
     return LoginScreen();
-  }
-
-  String? _checkInviteLink() {
-    try {
-      final currentUrl = html.window.location.href;
-      print('[Init] Текущий URL: $currentUrl');
-
-      final uri = Uri.parse(currentUrl);
-      print('[Init] Путь: ${uri.path}');
-      print('[Init] Сегменты пути: ${uri.pathSegments}');
-
-      if (uri.pathSegments.isNotEmpty && uri.pathSegments.length >= 2) {
-        if (uri.pathSegments[0] == 'invite') {
-          final inviteCode = uri.pathSegments[1];
-          print('[Init] ✅ Обнаружен инвайт-код: $inviteCode');
-          return inviteCode;
-        }
-      }
-    } catch (e) {
-      print('[Init] Ошибка при проверке URL: $e');
-    }
-    return null;
   }
 }
 
@@ -155,142 +163,64 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   @override
   void initState() {
     super.initState();
-    print('[CallOverlay] initState - подписываемся на callState');
 
-    _callSubscription = WebRTCService.instance.callState.listen((call) {
-      print('[CallOverlay] Получено обновление звонка: ${call?.status}');
+    print('[CallOverlay] ========================================');
+    print('[CallOverlay] initState - инициализация overlay');
+    print('[CallOverlay] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
+    print('[CallOverlay] ========================================');
 
-      if (!mounted) return;
+    // КРИТИЧЕСКИ ВАЖНО: Подписываемся на входящие звонки НЕМЕДЛЕННО
+    _subscribeToCallState();
+  }
 
-      if (call != null && call.status == CallStatus.incoming) {
-        print('[CallOverlay] Показываем входящий звонок от ${call.callerName}');
-        setState(() {
-          _incomingCall = call;
-        });
-      } else if (call == null ||
-          call.status == CallStatus.ended ||
-          call.status == CallStatus.declined) {
-        print('[CallOverlay] Скрываем overlay (статус: ${call?.status})');
-        setState(() {
-          _incomingCall = null;
-        });
-      }
-    });
+  void _subscribeToCallState() {
+    print('[CallOverlay] 📡 Подписка на callState stream...');
 
-    // ДОБАВЛЕНО: Устанавливаем обработчик входящих звонков через WebSocket
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        try {
-          final chatProvider = context.read<ChatProvider>();
-          chatProvider.setIncomingCallHandler(_handleIncomingCall);
-          print('[CallOverlay] ✅ Обработчик входящих звонков установлен');
-        } catch (e) {
-          print('[CallOverlay] ❌ Ошибка установки обработчика: $e');
+    _callSubscription?.cancel();
+    _callSubscription = WebRTCService.instance.callState.listen(
+      (call) {
+        print('[CallOverlay] ========================================');
+        print('[CallOverlay] 📨 Получено обновление звонка');
+        print('[CallOverlay] Call ID: ${call?.id}');
+        print('[CallOverlay] Status: ${call?.status}');
+        print('[CallOverlay] Caller: ${call?.callerName}');
+        print('[CallOverlay] Type: ${call?.callType}');
+        print('[CallOverlay] ========================================');
+
+        if (!mounted) {
+          print('[CallOverlay] ⚠️ Widget не смонтирован, игнорируем');
+          return;
         }
-      }
-    });
-  }
 
-  // ДОБАВЛЕНО: Обработчик входящих звонков через WebSocket
-  void _handleIncomingCall(Map<String, dynamic> callData) {
-    if (!mounted) return;
-
-    print('[CallOverlay] 📞 Получен входящий звонок через WebSocket');
-    print('[CallOverlay] Данные звонка: $callData');
-
-    // Показываем диалог входящего звонка для мобильных устройств
-    final callerName =
-        callData['callerName'] ?? callData['caller_name'] ?? 'Неизвестный';
-    final callType = callData['callType'] ?? callData['call_type'] ?? 'audio';
-    final chatId =
-        callData['chatId']?.toString() ?? callData['chat_id']?.toString();
-    final callerId =
-        callData['callerId']?.toString() ?? callData['caller_id']?.toString();
-    final callerAvatar = callData['callerAvatar'] ?? callData['caller_avatar'];
-
-    if (chatId == null || callerId == null) {
-      print('[CallOverlay] ⚠️ Недостаточно данных для звонка');
-      return;
-    }
-
-    // Данные будут обработаны через WebRTCService и отобразятся через callState
-    // Этот метод нужен для дополнительной обработки на мобильных устройствах
-    print('[CallOverlay] ✅ Звонок будет обработан через WebRTCService');
-
-    // Для мобильных устройств можно показать дополнительное уведомление
-    _showMobileCallNotification(
-      callerName: callerName,
-      callType: callType,
-      chatId: chatId,
-      callerId: callerId,
-      callerAvatar: callerAvatar,
+        if (call != null && call.status == CallStatus.incoming) {
+          print(
+              '[CallOverlay] ✅ ПОКАЗЫВАЕМ входящий звонок от ${call.callerName}');
+          setState(() {
+            _incomingCall = call;
+          });
+        } else if (call == null ||
+            call.status == CallStatus.ended ||
+            call.status == CallStatus.declined) {
+          print('[CallOverlay] 🔴 Скрываем overlay (статус: ${call?.status})');
+          setState(() {
+            _incomingCall = null;
+          });
+        }
+      },
+      onError: (error) {
+        print('[CallOverlay] ❌ Ошибка в callState stream: $error');
+      },
+      cancelOnError: false,
     );
-  }
 
-  // ДОБАВЛЕНО: Уведомление для мобильных устройств
-  void _showMobileCallNotification({
-    required String callerName,
-    required String callType,
-    required String chatId,
-    required String callerId,
-    String? callerAvatar,
-  }) {
-    // Проверяем, не отображается ли уже overlay
-    if (_incomingCall != null) {
-      print('[CallOverlay] Overlay уже отображается');
-      return;
-    }
-
-    print('[CallOverlay] 📱 Показываем мобильное уведомление о звонке');
-
-    // Показываем SnackBar с кнопками для мобильных устройств
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: Duration(seconds: 30),
-        backgroundColor: Color(0xFF667EEA),
-        behavior: SnackBarBehavior.floating,
-        content: Row(
-          children: [
-            Icon(
-              callType == 'video' ? Icons.videocam : Icons.call,
-              color: Colors.white,
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Входящий ${callType == 'video' ? 'видео' : ''}звонок',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    callerName,
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        action: SnackBarAction(
-          label: 'Открыть',
-          textColor: Colors.white,
-          onPressed: () {
-            // Уведомление будет показано через overlay
-          },
-        ),
-      ),
-    );
+    print('[CallOverlay] ✅ Подписка на callState активирована');
   }
 
   @override
   void dispose() {
+    print('[CallOverlay] ========================================');
     print('[CallOverlay] dispose - отменяем подписку');
+    print('[CallOverlay] ========================================');
     _callSubscription?.cancel();
     super.dispose();
   }
@@ -303,11 +233,16 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
         if (_incomingCall != null)
           Positioned.fill(
             child: Container(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black
+                  .withOpacity(0.8), // УВЕЛИЧЕНО для лучшей видимости
               child: IncomingCallOverlay(
                 incomingCall: _incomingCall!,
                 onDismiss: () {
+                  print(
+                      '[CallOverlay] ========================================');
                   print('[CallOverlay] onDismiss вызван');
+                  print(
+                      '[CallOverlay] ========================================');
                   setState(() {
                     _incomingCall = null;
                   });
