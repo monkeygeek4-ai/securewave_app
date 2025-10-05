@@ -1,4 +1,4 @@
-// lib/providers/auth_provider.dart (ОБНОВЛЕННАЯ ВЕРСИЯ)
+// lib/providers/auth_provider.dart
 
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
@@ -6,12 +6,12 @@ import '../services/websocket_manager.dart';
 import '../models/user.dart';
 
 class AuthProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
+  final ApiService _api = ApiService.instance;
   final WebSocketManager _wsManager = WebSocketManager.instance;
 
   User? _currentUser;
   bool _isAuthenticated = false;
-  bool _isLoading = false;
+  bool _isLoading = true;
   String? _errorMessage;
 
   User? get currentUser => _currentUser;
@@ -20,19 +20,104 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get currentToken => _api.currentToken;
 
+  AuthProvider() {
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      print('[AuthProvider] Проверка авторизации...');
+
+      // Ждем загрузки токена из хранилища
+      await _api.waitForToken();
+
+      if (_api.hasToken) {
+        print('[AuthProvider] Токен найден, получаем данные пользователя');
+
+        // Получаем данные текущего пользователя
+        final user = await _api.getCurrentUser();
+
+        if (user != null) {
+          _currentUser = user;
+          _isAuthenticated = true;
+          print('[AuthProvider] Пользователь восстановлен: ${user.username}');
+
+          // Подключаем WebSocket
+          try {
+            await _wsManager.connect(token: _api.currentToken!);
+            print('[AuthProvider] WebSocket подключен');
+          } catch (e) {
+            print('[AuthProvider] Ошибка подключения WebSocket: $e');
+          }
+        } else {
+          print('[AuthProvider] Не удалось получить данные пользователя');
+          _isAuthenticated = false;
+          await _api.clearToken();
+        }
+      } else {
+        print('[AuthProvider] Токен не найден');
+        _isAuthenticated = false;
+      }
+    } catch (e) {
+      print('[AuthProvider] Ошибка проверки авторизации: $e');
+      _isAuthenticated = false;
+      await _api.clearToken();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> checkAuthStatus() async {
+    try {
+      print('[AuthProvider] Проверка статуса авторизации');
+
+      if (_api.hasToken) {
+        final user = await _api.getCurrentUser();
+
+        if (user != null) {
+          _currentUser = user;
+          _isAuthenticated = true;
+          notifyListeners();
+
+          if (_api.currentToken != null) {
+            try {
+              await _wsManager.connect(token: _api.currentToken!);
+            } catch (e) {
+              print('[AuthProvider] Ошибка подключения WebSocket: $e');
+            }
+          }
+        } else {
+          _isAuthenticated = false;
+          notifyListeners();
+        }
+      } else {
+        _isAuthenticated = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      print('[AuthProvider] Ошибка проверки статуса: $e');
+      _isAuthenticated = false;
+      notifyListeners();
+    }
+  }
+
   Future<bool> login(String username, String password) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      print('[Auth] Вход для пользователя: $username');
+      print('[AuthProvider] Вход для пользователя: $username');
 
       await _api.clearToken();
       _wsManager.disconnect();
 
       final response = await _api.login(username, password);
-      print('[Auth] Данные ответа входа: $response');
+      print('[AuthProvider] Данные ответа входа: $response');
 
       if (response['success'] == true || response['user'] != null) {
         _currentUser = User.fromJson(response['user']);
@@ -43,13 +128,13 @@ class AuthProvider extends ChangeNotifier {
             response['accessToken'];
 
         if (token != null && token.isNotEmpty) {
-          print('[Auth] Подключаем WebSocket после входа');
+          print('[AuthProvider] Подключаем WebSocket после входа');
           await Future.delayed(Duration(milliseconds: 500));
 
           try {
             await _wsManager.connect(token: token);
           } catch (e) {
-            print('[Auth] Ошибка подключения WebSocket: $e');
+            print('[AuthProvider] Ошибка подключения WebSocket: $e');
           }
         }
 
@@ -83,7 +168,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('[Auth] Регистрация пользователя: $username');
+      print('[AuthProvider] Регистрация пользователя: $username');
 
       await _api.clearToken();
       _wsManager.disconnect();
@@ -95,7 +180,7 @@ class AuthProvider extends ChangeNotifier {
         fullName: fullName,
       );
 
-      print('[Auth] Ответ регистрации: $response');
+      print('[AuthProvider] Ответ регистрации: $response');
 
       if (response['success'] == true || response['user'] != null) {
         _currentUser = User.fromJson(response['user']);
@@ -106,13 +191,13 @@ class AuthProvider extends ChangeNotifier {
             response['accessToken'];
 
         if (token != null && token.isNotEmpty) {
-          print('[Auth] Подключаем WebSocket после регистрации');
+          print('[AuthProvider] Подключаем WebSocket после регистрации');
           await Future.delayed(Duration(milliseconds: 500));
 
           try {
             await _wsManager.connect(token: token);
           } catch (e) {
-            print('[Auth] Ошибка подключения WebSocket: $e');
+            print('[AuthProvider] Ошибка подключения WebSocket: $e');
           }
         }
 
@@ -135,7 +220,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // НОВЫЙ МЕТОД: Установка авторизованного состояния (для инвайт-регистрации)
   void setAuthenticated(Map<String, dynamic> userData, String? token) {
     _currentUser = User.fromJson(userData);
     _isAuthenticated = true;
@@ -145,7 +229,7 @@ class AuthProvider extends ChangeNotifier {
         try {
           await _wsManager.connect(token: token);
         } catch (e) {
-          print('[Auth] Ошибка подключения WebSocket: $e');
+          print('[AuthProvider] Ошибка подключения WebSocket: $e');
         }
       });
     }
@@ -153,38 +237,12 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> checkAuthStatus() async {
-    try {
-      final response = await _api.get('/auth/me');
-
-      if (response['id'] != null) {
-        _currentUser = User.fromJson(response);
-        _isAuthenticated = true;
-        notifyListeners();
-
-        if (_api.currentToken != null) {
-          try {
-            await _wsManager.connect(token: _api.currentToken!);
-          } catch (e) {
-            print('[Auth] Ошибка подключения WebSocket: $e');
-          }
-        }
-      } else {
-        _isAuthenticated = false;
-        notifyListeners();
-      }
-    } catch (e) {
-      print('[Auth] Ошибка проверки статуса: $e');
-      _isAuthenticated = false;
-      notifyListeners();
-    }
-  }
-
   Future<void> logout() async {
     _isLoading = true;
     notifyListeners();
 
     try {
+      await _api.logout();
       _wsManager.disconnect();
       await _api.clearToken();
 
@@ -192,7 +250,7 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = false;
       _errorMessage = null;
     } catch (e) {
-      print('[Auth] Ошибка выхода: $e');
+      print('[AuthProvider] Ошибка выхода: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -30,14 +30,36 @@ class _ChatViewState extends State<ChatView> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isTyping = false;
-  bool _isLoading = false;
+  bool _isSending = false; // Переименовано из _isLoading
+  bool _messagesLoaded = false;
+  int _previousMessageCount = 0;
   Timer? _typingTimer;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    print('[ChatView] Инициализация для чата: ${widget.chat.id}');
     _messageController.addListener(_onTextChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMessages();
+      _startAutoRefresh();
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChatView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.chat.id != widget.chat.id) {
+      print(
+          '[ChatView] Чат изменился с ${oldWidget.chat.id} на ${widget.chat.id}');
+      _messagesLoaded = false;
+      _previousMessageCount = 0;
+      _stopAutoRefresh();
+      _loadMessages();
+      _startAutoRefresh();
+    }
   }
 
   @override
@@ -47,7 +69,55 @@ class _ChatViewState extends State<ChatView> {
     _messageController.dispose();
     _focusNode.dispose();
     _typingTimer?.cancel();
+    _stopAutoRefresh();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(Duration(seconds: 2), (_) {
+      if (mounted) {
+        _refreshMessages();
+      }
+    });
+    print('[ChatView] ✅ Автообновление запущено (каждые 2 сек)');
+  }
+
+  void _stopAutoRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    print('[ChatView] ❌ Автообновление остановлено');
+  }
+
+  Future<void> _refreshMessages() async {
+    try {
+      final chatProvider = context.read<ChatProvider>();
+
+      // НЕ проверяем _isLoading - это позволяет обновлять в фоне
+      final oldCount = chatProvider.messages.length;
+
+      print(
+          '[ChatView] 🔄 Автообновление: текущее количество сообщений: $oldCount');
+
+      // Загружаем сообщения БЕЗ установки флага _isLoading
+      await chatProvider.loadMessages(widget.chat.id);
+
+      final newCount = chatProvider.messages.length;
+
+      if (newCount > oldCount) {
+        print(
+            '[ChatView] 🆕 НОВОЕ СООБЩЕНИЕ! Было: $oldCount, стало: $newCount');
+        if (mounted) {
+          setState(() {
+            _previousMessageCount = newCount;
+          });
+          _scrollToBottom();
+        }
+      } else {
+        print('[ChatView] ⚪ Новых сообщений нет ($newCount)');
+      }
+    } catch (e) {
+      print('[ChatView] ❌ Ошибка автообновления: $e');
+    }
   }
 
   void _onTextChanged() {
@@ -57,13 +127,37 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Future<void> _loadMessages() async {
-    await context.read<ChatProvider>().loadMessages(widget.chat.id);
-    _scrollToBottom();
+    if (_messagesLoaded) {
+      print('[ChatView] ⏭️ Сообщения уже загружены, пропускаем');
+      return;
+    }
+
+    print(
+        '[ChatView] 📥 Первоначальная загрузка сообщений для чата: ${widget.chat.id}');
+    final chatProvider = context.read<ChatProvider>();
+
+    if (chatProvider.currentChatId != widget.chat.id) {
+      chatProvider.setCurrentChatId(widget.chat.id);
+    }
+
+    await chatProvider.loadMessages(widget.chat.id);
+
+    print(
+        '[ChatView] ✅ Первоначальная загрузка завершена: ${chatProvider.messages.length} сообщений');
+
+    if (mounted) {
+      setState(() {
+        _messagesLoaded = true;
+        _previousMessageCount = chatProvider.messages.length;
+      });
+
+      _scrollToBottom();
+    }
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (_scrollController.hasClients && mounted) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: Duration(milliseconds: 300),
@@ -78,29 +172,44 @@ class _ChatViewState extends State<ChatView> {
     if (text.isEmpty) return;
 
     setState(() {
-      _isLoading = true;
+      _isSending = true;
     });
 
     _messageController.clear();
-    setState(() {});
     _stopTyping();
 
     try {
       final chatProvider = context.read<ChatProvider>();
-      chatProvider.setCurrentChatId(widget.chat.id);
+      print('[ChatView] 📤 Отправка сообщения...');
+
       await chatProvider.sendMessage(text, chatId: widget.chat.id);
-      _scrollToBottom();
+
+      print(
+          '[ChatView] ✅ Сообщение отправлено, принудительно обновляем список');
+
+      // Принудительно обновляем сообщения после отправки
+      await chatProvider.loadMessages(widget.chat.id);
+
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+          _previousMessageCount = chatProvider.messages.length;
+        });
+        _scrollToBottom();
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка отправки сообщения'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      print('[ChatView] ❌ Ошибка отправки сообщения: $e');
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка отправки сообщения'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -117,7 +226,7 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _stopTyping() {
-    if (_isTyping) {
+    if (_isTyping && mounted) {
       _isTyping = false;
       context.read<ChatProvider>().sendTypingStatus(widget.chat.id, false);
     }
@@ -304,9 +413,7 @@ class _ChatViewState extends State<ChatView> {
           ),
           IconButton(
             icon: Icon(Icons.more_vert),
-            onPressed: () {
-              // TODO: Дополнительное меню
-            },
+            onPressed: () {},
           ),
         ],
       ),
@@ -316,11 +423,44 @@ class _ChatViewState extends State<ChatView> {
         ),
         child: Column(
           children: [
-            // Список сообщений
             Expanded(
               child: Consumer<ChatProvider>(
                 builder: (context, chatProvider, _) {
-                  final messages = chatProvider.getMessages(widget.chat.id);
+                  final messages = chatProvider.messages;
+                  final isLoading = chatProvider.isLoading;
+
+                  // Автоматическая прокрутка при новых сообщениях
+                  if (messages.length > _previousMessageCount &&
+                      _previousMessageCount > 0) {
+                    print(
+                        '[ChatView] 📜 Обнаружено новое сообщение в UI, прокручиваем вниз');
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _previousMessageCount = messages.length;
+                      _scrollToBottom();
+                    });
+                  }
+
+                  print('[ChatView] 🎨 Рендерим ${messages.length} сообщений');
+
+                  if (isLoading && messages.isEmpty && !_messagesLoaded) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            color: AppColors.primaryPurple,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            'Загрузка сообщений...',
+                            style: TextStyle(
+                              color: AppColors.getSecondaryTextColor(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
                   if (messages.isEmpty) {
                     return Center(
@@ -398,8 +538,8 @@ class _ChatViewState extends State<ChatView> {
                             ),
                           MessageBubble(
                             message: message,
-                            isMe: message.senderId ==
-                                context.read<ChatProvider>().currentUserId,
+                            isMe:
+                                message.senderId == chatProvider.currentUserId,
                           ),
                         ],
                       );
@@ -408,8 +548,6 @@ class _ChatViewState extends State<ChatView> {
                 },
               ),
             ),
-
-            // Индикатор печати
             Consumer<ChatProvider>(
               builder: (context, chatProvider, _) {
                 final typingUser =
@@ -436,8 +574,6 @@ class _ChatViewState extends State<ChatView> {
                 return SizedBox.shrink();
               },
             ),
-
-            // Поле ввода сообщения
             Container(
               decoration: BoxDecoration(
                 color: AppColors.getSurfaceColor(context),
@@ -453,17 +589,13 @@ class _ChatViewState extends State<ChatView> {
               child: SafeArea(
                 child: Row(
                   children: [
-                    // Кнопка прикрепления файлов
                     IconButton(
                       icon: Icon(
                         Icons.attach_file,
                         color: AppColors.primaryPurple,
                       ),
-                      onPressed: () {
-                        // TODO: Прикрепление файлов
-                      },
+                      onPressed: () {},
                     ),
-                    // Поле ввода
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -498,7 +630,6 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     ),
                     SizedBox(width: 8),
-                    // Кнопка отправки
                     Container(
                       decoration: BoxDecoration(
                         gradient: _messageController.text.trim().isEmpty
@@ -513,7 +644,7 @@ class _ChatViewState extends State<ChatView> {
                             : [AppColors.primaryShadow],
                       ),
                       child: IconButton(
-                        icon: _isLoading
+                        icon: _isSending
                             ? SizedBox(
                                 width: 20,
                                 height: 20,
@@ -532,7 +663,7 @@ class _ChatViewState extends State<ChatView> {
                                 size: 20,
                               ),
                         onPressed:
-                            _messageController.text.trim().isEmpty || _isLoading
+                            _messageController.text.trim().isEmpty || _isSending
                                 ? null
                                 : _sendMessage,
                       ),

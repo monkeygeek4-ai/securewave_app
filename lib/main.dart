@@ -21,9 +21,19 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ChatProvider>(
+          create: (_) => ChatProvider(),
+          update: (_, auth, previous) {
+            final chatProvider = previous ?? ChatProvider();
+            if (auth.isAuthenticated && auth.currentUser != null) {
+              // Используем setCurrentUserId который принимает String
+              chatProvider.setCurrentUserId(auth.currentUser!.id.toString());
+            }
+            return chatProvider;
+          },
+        ),
       ],
       child: MyApp(),
     ),
@@ -33,8 +43,8 @@ void main() {
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
+    return Consumer2<ThemeProvider, AuthProvider>(
+      builder: (context, themeProvider, authProvider, _) {
         return MaterialApp(
           title: 'SecureWave',
           debugShowCheckedModeBanner: false,
@@ -48,7 +58,7 @@ class MyApp extends StatelessWidget {
           ),
           themeMode: themeProvider.themeMode,
           home: CallOverlayWrapper(
-            child: InitializationWrapper(),
+            child: _buildHome(authProvider, context),
           ),
           routes: {
             '/login': (context) => LoginScreen(),
@@ -58,6 +68,74 @@ class MyApp extends StatelessWidget {
         );
       },
     );
+  }
+
+  Widget _buildHome(AuthProvider authProvider, BuildContext context) {
+    // Проверяем инвайт-код
+    String? inviteCode = _checkInviteLink();
+    if (inviteCode != null) {
+      return InviteRegisterScreen(inviteCode: inviteCode);
+    }
+
+    // Показываем загрузку пока проверяется авторизация
+    if (authProvider.isLoading) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF7C3AED),
+          ),
+        ),
+      );
+    }
+
+    // Если пользователь авторизован
+    if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+      print(
+          '[Init] Пользователь авторизован: ${authProvider.currentUser?.username}');
+
+      // Инициализация WebRTC
+      WebRTCService.instance.initialize(authProvider.currentUser!.id).then((_) {
+        print('[Init] WebRTC успешно инициализирован');
+      }).catchError((e) {
+        print('[Init] Ошибка инициализации WebRTC: $e');
+      });
+
+      // Загружаем чаты
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final chatProvider = context.read<ChatProvider>();
+        print(
+            '[Init] Загружаем чаты для пользователя ${authProvider.currentUser!.id}');
+        chatProvider.loadChats();
+      });
+
+      return HomeScreen();
+    }
+
+    // Показываем экран входа
+    print('[Init] Пользователь не авторизован, показываем экран входа');
+    return LoginScreen();
+  }
+
+  String? _checkInviteLink() {
+    try {
+      final currentUrl = html.window.location.href;
+      print('[Init] Текущий URL: $currentUrl');
+
+      final uri = Uri.parse(currentUrl);
+      print('[Init] Путь: ${uri.path}');
+      print('[Init] Сегменты пути: ${uri.pathSegments}');
+
+      if (uri.pathSegments.isNotEmpty && uri.pathSegments.length >= 2) {
+        if (uri.pathSegments[0] == 'invite') {
+          final inviteCode = uri.pathSegments[1];
+          print('[Init] ✅ Обнаружен инвайт-код: $inviteCode');
+          return inviteCode;
+        }
+      }
+    } catch (e) {
+      print('[Init] Ошибка при проверке URL: $e');
+    }
+    return null;
   }
 }
 
@@ -129,112 +207,6 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
             ),
           ),
       ],
-    );
-  }
-}
-
-// Инициализация приложения с проверкой инвайт-ссылок
-class InitializationWrapper extends StatefulWidget {
-  @override
-  _InitializationWrapperState createState() => _InitializationWrapperState();
-}
-
-class _InitializationWrapperState extends State<InitializationWrapper> {
-  bool _isInitialized = false;
-  String? _inviteCode;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkInviteLink();
-    _initialize();
-  }
-
-  void _checkInviteLink() {
-    try {
-      // Проверяем URL на наличие /invite/CODE
-      final currentUrl = html.window.location.href;
-      print('[Init] Текущий URL: $currentUrl');
-
-      final uri = Uri.parse(currentUrl);
-      print('[Init] Путь: ${uri.path}');
-      print('[Init] Сегменты пути: ${uri.pathSegments}');
-
-      if (uri.pathSegments.isNotEmpty && uri.pathSegments.length >= 2) {
-        if (uri.pathSegments[0] == 'invite') {
-          _inviteCode = uri.pathSegments[1];
-          print('[Init] ✅ Обнаружен инвайт-код: $_inviteCode');
-        }
-      }
-    } catch (e) {
-      print('[Init] Ошибка при проверке URL: $e');
-    }
-  }
-
-  Future<void> _initialize() async {
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.checkAuthStatus();
-
-    if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      print(
-          '[Init] Пользователь авторизован: ${authProvider.currentUser!.username}');
-
-      // Инициализируем WebRTC
-      try {
-        await WebRTCService.instance.initialize(authProvider.currentUser!.id);
-        print('[Init] WebRTC успешно инициализирован');
-      } catch (e) {
-        print('[Init] Ошибка инициализации WebRTC: $e');
-      }
-
-      final chatProvider = context.read<ChatProvider>();
-      chatProvider.setCurrentUserId(authProvider.currentUser!.id);
-
-      try {
-        await chatProvider.loadChats();
-      } catch (e) {
-        print('[Init] Ошибка загрузки чатов: $e');
-      }
-    } else {
-      print('[Init] Пользователь не авторизован');
-    }
-
-    setState(() {
-      _isInitialized = true;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_isInitialized) {
-      return Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
-    // Если есть инвайт-код, показываем страницу регистрации
-    if (_inviteCode != null) {
-      return InviteRegisterScreen(inviteCode: _inviteCode);
-    }
-
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, _) {
-        if (authProvider.isLoading) {
-          return Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-          return HomeScreen();
-        }
-
-        return LoginScreen();
-      },
     );
   }
 }

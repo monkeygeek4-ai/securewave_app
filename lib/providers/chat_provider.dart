@@ -47,17 +47,17 @@ class ChatProvider with ChangeNotifier {
   }
 
   void _subscribeToAppLifecycle() {
-    // Метод onFocus/onBlur не существует в WebSocketManager
-    // Убираем эти подписки или реализуем альтернативным способом
     _log('Подписка на lifecycle events (пока не реализована)');
   }
 
   void _handleWebSocketMessage(Map<String, dynamic> data) {
     final type = data['type'];
-    _log('WebSocket сообщение: $type');
+    _log('WebSocket сообщение: $type, данные: $data');
 
     switch (type) {
       case 'new_message':
+      case 'message':
+      case 'chat_message':
         _handleNewMessage(data);
         break;
       case 'message_read':
@@ -84,22 +84,64 @@ class ChatProvider with ChangeNotifier {
       case 'user_offline':
         _handleUserOffline(data);
         break;
+      case 'auth_success':
+        loadChats();
+        break;
+      default:
+        _log('Неизвестный тип WebSocket сообщения: $type');
     }
   }
 
   void _handleNewMessage(Map<String, dynamic> data) {
     try {
-      final message = Message.fromJson(data['message']);
-      _log('Новое сообщение: ${message.id} в чате ${message.chatId}');
+      _log('_handleNewMessage вызван с данными: $data');
 
-      final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+      // Попробуем разные варианты структуры данных
+      Map<String, dynamic>? messageData;
 
-      if (existingIndex == -1) {
-        _messages.add(message);
+      if (data.containsKey('message')) {
+        messageData = data['message'] is Map<String, dynamic>
+            ? data['message'] as Map<String, dynamic>
+            : null;
+      } else if (data.containsKey('data')) {
+        messageData = data['data'] is Map<String, dynamic>
+            ? data['data'] as Map<String, dynamic>
+            : null;
       } else {
-        _messages[existingIndex] = message;
+        // Возможно само data является сообщением
+        messageData = data;
       }
 
+      if (messageData == null) {
+        _log('ОШИБКА: Не удалось извлечь данные сообщения из: $data');
+        return;
+      }
+
+      _log('Парсим сообщение из: $messageData');
+      final message = Message.fromJson(messageData);
+      _log(
+          '✅ Новое сообщение распарсено: ${message.id} от ${message.senderId} в чате ${message.chatId}');
+      _log(
+          'Текущий чат: $_currentChatId, Сообщение для чата: ${message.chatId}');
+
+      // Добавляем сообщение только если это текущий чат
+      if (_currentChatId == message.chatId) {
+        final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+
+        if (existingIndex == -1) {
+          _messages.add(message);
+          _log(
+              '✅ Сообщение ДОБАВЛЕНО в список, всего сообщений: ${_messages.length}');
+        } else {
+          _messages[existingIndex] = message;
+          _log('✅ Сообщение ОБНОВЛЕНО в списке');
+        }
+      } else {
+        _log(
+            '⚠️ Сообщение НЕ для текущего чата, пропускаем добавление в _messages');
+      }
+
+      // Обновляем информацию в списке чатов
       final chatIndex = _chats.indexWhere((c) => c.id == message.chatId);
       if (chatIndex != -1) {
         final isCurrentChat = _currentChatId == message.chatId;
@@ -112,15 +154,19 @@ class ChatProvider with ChangeNotifier {
 
         final chat = _chats.removeAt(chatIndex);
         _chats.insert(0, chat);
+        _log('✅ Обновлен чат в списке');
       }
 
+      // КРИТИЧНО: Уведомляем слушателей
+      _log('🔔 Вызываем notifyListeners()');
       notifyListeners();
 
       if (_currentChatId == message.chatId) {
         markMessagesAsRead(message.chatId);
       }
-    } catch (e) {
-      _log('Ошибка обработки нового сообщения: $e');
+    } catch (e, stackTrace) {
+      _log('❌ ОШИБКА обработки нового сообщения: $e');
+      _log('Stack trace: $stackTrace');
     }
   }
 
@@ -194,6 +240,8 @@ class ChatProvider with ChangeNotifier {
 
   void _handleMessageSent(Map<String, dynamic> data) {
     _log('Подтверждение отправки сообщения: $data');
+    // Может быть это и есть новое сообщение?
+    _handleNewMessage(data);
   }
 
   void _handleUserOnline(Map<String, dynamic> data) {
@@ -206,15 +254,24 @@ class ChatProvider with ChangeNotifier {
     _log('Пользователь оффлайн: $userId');
   }
 
+  void setUserId(int userId) {
+    _currentUserId = userId.toString();
+    _log('Установлен ID пользователя: $userId');
+    loadChats();
+  }
+
   void setCurrentUserId(String userId) {
     _currentUserId = userId;
     _log('Установлен ID пользователя: $userId');
   }
 
-  // ИСПРАВЛЕННЫЙ МЕТОД - очищает старые сообщения и загружает новые
   void setCurrentChatId(String? chatId) {
-    // Если переключаемся на другой чат - очищаем старые сообщения
-    if (_currentChatId != chatId) {
+    if (_currentChatId == chatId) {
+      _log('Чат уже установлен: $chatId');
+      return;
+    }
+
+    if (_currentChatId != null && _currentChatId != chatId) {
       _messages.clear();
       _log('Очищены сообщения предыдущего чата');
     }
@@ -223,16 +280,11 @@ class ChatProvider with ChangeNotifier {
     _log('Установлен текущий чат: $chatId');
 
     if (chatId != null) {
-      // Сбрасываем счетчик непрочитанных
       final chatIndex = _chats.indexWhere((c) => c.id == chatId);
       if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
         _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
       }
 
-      // Загружаем сообщения нового чата
-      loadMessages(chatId);
-
-      // Отмечаем сообщения как прочитанные
       markMessagesAsRead(chatId);
     }
 
@@ -294,12 +346,15 @@ class ChatProvider with ChangeNotifier {
       if (message != null) {
         _log('Сообщение отправлено: ${message.id}');
 
-        final existingIndex = _messages.indexWhere((m) => m.id == message.id);
+        if (_currentChatId == targetChatId) {
+          final existingIndex = _messages.indexWhere((m) => m.id == message.id);
 
-        if (existingIndex == -1) {
-          _messages.add(message);
-        } else {
-          _messages[existingIndex] = message;
+          if (existingIndex == -1) {
+            _messages.add(message);
+            _log('Отправленное сообщение добавлено в список');
+          } else {
+            _messages[existingIndex] = message;
+          }
         }
 
         final chatIndex = _chats.indexWhere((c) => c.id == targetChatId);
@@ -348,7 +403,6 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // НОВЫЙ МЕТОД для создания группового чата
   Future<void> createGroupChat(
       String groupName, List<String> participantIds) async {
     try {
@@ -368,7 +422,6 @@ class ChatProvider with ChangeNotifier {
           _chats[existingIndex] = chat;
         }
 
-        // Обновляем список чатов
         await loadChats();
 
         notifyListeners();
@@ -402,6 +455,7 @@ class ChatProvider with ChangeNotifier {
       _log('Ошибка удаления чата: $e');
       _errorMessage = 'Не удалось удалить чат';
       notifyListeners();
+      rethrow;
     }
   }
 

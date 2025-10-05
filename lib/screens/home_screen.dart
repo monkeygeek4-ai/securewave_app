@@ -24,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String? _selectedChatId;
   bool _showProfileSettings = false;
   bool _showInvites = false;
+  bool _showMenu = false;
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   Timer? _refreshTimer;
@@ -37,7 +38,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _listenForIncomingCalls();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkChats();
+      print('[Home] Загрузка чатов при открытии экрана');
+      context.read<ChatProvider>().loadChats();
       _startPeriodicRefresh();
     });
 
@@ -65,18 +67,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _startPeriodicRefresh() {
     _refreshTimer = Timer.periodic(Duration(seconds: 3), (_) {
-      final isTablet = MediaQuery.of(context).size.width > 600;
-      if (isTablet || _selectedChatId == null) {
+      if (_selectedChatId == null &&
+          !_showProfileSettings &&
+          !_showInvites &&
+          !_showMenu) {
         _refreshChats(showIndicator: false);
       }
     });
-  }
-
-  Future<void> _checkChats() async {
-    final chatProvider = context.read<ChatProvider>();
-    if (chatProvider.chats.isEmpty && !chatProvider.isLoading) {
-      await _refreshChats();
-    }
   }
 
   Future<void> _refreshChats({bool showIndicator = true}) async {
@@ -137,8 +134,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
 
     final chatProvider = context.read<ChatProvider>();
-    chatProvider.setCurrentChatId(chatId);
-    chatProvider.markMessagesAsRead(chatId);
+
+    // Только устанавливаем ID если это новый чат
+    if (chatProvider.currentChatId != chatId) {
+      chatProvider.setCurrentChatId(chatId);
+    }
   }
 
   void _openProfileSettings() {
@@ -150,7 +150,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _showProfileSettings = true;
         _showInvites = false;
       });
-      Navigator.pop(context);
     } else {
       Navigator.push(
         context,
@@ -170,7 +169,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _showProfileSettings = false;
         _showInvites = true;
       });
-      Navigator.pop(context);
     } else {
       Navigator.push(
         context,
@@ -272,12 +270,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final isTablet = MediaQuery.of(context).size.width > 600;
 
     return Scaffold(
-      drawer: _buildDrawer(),
       body: Row(
         children: [
           Container(
             width: isTablet ? 350 : MediaQuery.of(context).size.width,
-            child: _buildChatListPanel(hasDrawer: true),
+            child: _showMenu ? _buildMenuScreen() : _buildChatListPanel(),
           ),
           if (isTablet)
             Expanded(
@@ -319,216 +316,357 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => NewChatScreen()),
-          );
-        },
-        child: Icon(Icons.edit),
-        backgroundColor: Color(0xFF7C3AED),
-        foregroundColor: Colors.white,
-        tooltip: 'Новый чат',
-      ),
+      floatingActionButton: !_showMenu &&
+              !_showProfileSettings &&
+              !_showInvites &&
+              (_selectedChatId == null || !isTablet)
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => NewChatScreen()),
+                );
+              },
+              child: Icon(Icons.edit),
+              backgroundColor: Color(0xFF7C3AED),
+              foregroundColor: Colors.white,
+              tooltip: 'Новый чат',
+            )
+          : null,
     );
   }
 
-  Widget _buildDrawer() {
+  Widget _buildMenuScreen() {
     final authProvider = context.watch<AuthProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final currentUser = authProvider.currentUser;
     final isDarkMode = themeProvider.isDarkMode;
+    final isTablet = MediaQuery.of(context).size.width > 600;
 
-    return Drawer(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: isDarkMode
-              ? LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF7C3AED).withOpacity(0.2),
-                    Color(0xFF1E1E1E),
-                  ],
-                )
-              : LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF7C3AED).withOpacity(0.1),
-                    Colors.white,
-                  ],
+    return Container(
+      decoration: BoxDecoration(
+        border: isTablet
+            ? Border(
+                right: BorderSide(
+                  color: isDarkMode
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.black.withOpacity(0.1),
                 ),
-        ),
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            DrawerHeader(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                ),
+              )
+            : null,
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 8,
+              right: 8,
+              bottom: 8,
+            ),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    radius: 35,
-                    backgroundColor: Colors.white,
-                    backgroundImage: currentUser?.avatar != null &&
-                            currentUser!.avatar!.isNotEmpty
-                        ? NetworkImage(currentUser.avatar!)
-                        : null,
-                    child: currentUser?.avatar == null ||
-                            currentUser!.avatar!.isEmpty
-                        ? Icon(Icons.person, size: 35, color: Color(0xFF7C3AED))
-                        : null,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    currentUser?.fullName ?? currentUser?.username ?? 'User',
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back, color: Colors.white, size: 28),
+                  onPressed: () {
+                    setState(() {
+                      _showMenu = false;
+                      _showProfileSettings = false;
+                      _showInvites = false;
+                    });
+                  },
+                  tooltip: 'Назад',
+                ),
+                Expanded(
+                  child: Text(
+                    'Меню',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    currentUser?.nickname != null
-                        ? '@${currentUser!.nickname}'
-                        : '@${currentUser?.username ?? ''}',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            ListTile(
-              leading: FaIcon(FontAwesomeIcons.gear, color: Color(0xFF7C3AED)),
-              title: Text(
-                'Настройки профиля',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-              subtitle: Text(
-                'Редактировать данные и фото',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
-                ),
-              ),
-              onTap: _openProfileSettings,
-            ),
-            ListTile(
-              leading: FaIcon(FontAwesomeIcons.key, color: Color(0xFF7C3AED)),
-              title: Text(
-                'Инвайты',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-              subtitle: Text(
-                'Управление приглашениями',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
-                ),
-              ),
-              onTap: _openInvites,
-            ),
-            Divider(),
-            ListTile(
-              leading: FaIcon(FontAwesomeIcons.circleHalfStroke,
-                  color: Color(0xFF7C3AED)),
-              title: Text(
-                'Тема',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-              trailing: Switch(
-                value: isDarkMode,
-                onChanged: (value) {
-                  themeProvider.toggleTheme();
-                },
-                activeColor: Color(0xFF7C3AED),
-              ),
-            ),
-            ListTile(
-              leading:
-                  FaIcon(FontAwesomeIcons.creditCard, color: Color(0xFF7C3AED)),
-              title: Text(
-                'О приложении',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.white : Colors.black87,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                showAboutDialog(
-                  context: context,
-                  applicationName: 'SecureWave',
-                  applicationVersion: '1.0.0',
-                  applicationIcon: Icon(
-                    Icons.security,
-                    size: 50,
-                    color: Color(0xFF7C3AED),
-                  ),
-                  children: [
-                    Text('Безопасный мессенджер с видеозвонками'),
-                    SizedBox(height: 10),
-                    Text('© 2025 SecureWave Team'),
-                  ],
-                );
-              },
-            ),
-            Divider(),
-            ListTile(
-              leading:
-                  FaIcon(FontAwesomeIcons.rightFromBracket, color: Colors.red),
-              title: Text(
-                'Выход',
-                style: TextStyle(color: Colors.red),
-              ),
-              onTap: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Выход'),
-                    content: Text('Вы уверены, что хотите выйти?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: Text('Отмена'),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                Container(
+                  height: 280,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: currentUser?.avatar != null &&
+                                currentUser!.avatar!.isNotEmpty
+                            ? Image.network(
+                                currentUser.avatar!,
+                                fit: BoxFit.cover,
+                              )
+                            : Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Color(0xFF667EEA),
+                                      Color(0xFF764BA2)
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 100,
+                                    color: Colors.white.withOpacity(0.5),
+                                  ),
+                                ),
+                              ),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child:
-                            Text('Выйти', style: TextStyle(color: Colors.red)),
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.7),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              currentUser?.fullName ??
+                                  currentUser?.username ??
+                                  'User',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              currentUser?.nickname != null
+                                  ? '@${currentUser!.nickname}'
+                                  : '@${currentUser?.username ?? ''}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 10,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFF00E676),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'online',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                );
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: isDarkMode
+                        ? LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFF7C3AED).withOpacity(0.2),
+                              Color(0xFF1E1E1E),
+                            ],
+                          )
+                        : LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFF7C3AED).withOpacity(0.1),
+                              Colors.white,
+                            ],
+                          ),
+                  ),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.gear,
+                            color: Color(0xFF7C3AED)),
+                        title: Text(
+                          'Настройки профиля',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Редактировать данные и фото',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                        onTap: _openProfileSettings,
+                      ),
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.key,
+                            color: Color(0xFF7C3AED)),
+                        title: Text(
+                          'Инвайты',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Управление приглашениями',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                        onTap: _openInvites,
+                      ),
+                      Divider(),
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.circleHalfStroke,
+                            color: Color(0xFF7C3AED)),
+                        title: Text(
+                          'Тема',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        trailing: Switch(
+                          value: isDarkMode,
+                          onChanged: (value) {
+                            themeProvider.toggleTheme();
+                          },
+                          activeColor: Color(0xFF7C3AED),
+                        ),
+                      ),
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.circleInfo,
+                            color: Color(0xFF7C3AED)),
+                        title: Text(
+                          'О приложении',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        onTap: () {
+                          showAboutDialog(
+                            context: context,
+                            applicationName: 'SecureWave',
+                            applicationVersion: '1.0.0',
+                            applicationIcon: Icon(
+                              Icons.security,
+                              size: 50,
+                              color: Color(0xFF7C3AED),
+                            ),
+                            children: [
+                              Text('Безопасный мессенджер с видеозвонками'),
+                              SizedBox(height: 10),
+                              Text('© 2025 SecureWave Team'),
+                            ],
+                          );
+                        },
+                      ),
+                      Divider(),
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.rightFromBracket,
+                            color: Colors.red),
+                        title: Text(
+                          'Выход',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                        onTap: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('Выход'),
+                              content: Text('Вы уверены, что хотите выйти?'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: Text('Отмена'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text('Выйти',
+                                      style: TextStyle(color: Colors.red)),
+                                ),
+                              ],
+                            ),
+                          );
 
-                if (confirm == true) {
-                  authProvider.logout();
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
-              },
+                          if (confirm == true) {
+                            authProvider.logout();
+                            Navigator.pushReplacementNamed(context, '/login');
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildChatListPanel({required bool hasDrawer}) {
+  Widget _buildChatListPanel() {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final isTablet = MediaQuery.of(context).size.width > 600;
 
@@ -547,7 +685,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       child: Column(
         children: [
-          _buildAppBar(hasDrawer: hasDrawer),
+          _buildAppBar(),
           _buildSearchBar(),
           Expanded(child: _buildChatList()),
         ],
@@ -555,9 +693,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildAppBar({required bool hasDrawer}) {
-    final isTablet = MediaQuery.of(context).size.width > 600;
-
+  Widget _buildAppBar() {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
@@ -572,14 +708,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       child: Row(
         children: [
-          if (hasDrawer)
-            Builder(
-              builder: (context) => IconButton(
-                icon: Icon(Icons.menu, color: Colors.white, size: 28),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-                tooltip: 'Меню',
-              ),
-            ),
+          IconButton(
+            icon: Icon(Icons.menu, color: Colors.white, size: 28),
+            onPressed: () {
+              setState(() {
+                _showMenu = true;
+              });
+            },
+            tooltip: 'Меню',
+          ),
           Expanded(
             child: Text(
               'SecureWave',
@@ -590,20 +727,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
           ),
-          // Иконки только для планшетов/десктопов
-          if (isTablet) ...[
-            IconButton(
-              icon: Icon(Icons.edit, color: Colors.white, size: 26),
-              onPressed: () {
-                print('New chat pressed');
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => NewChatScreen()),
-                );
-              },
-              tooltip: 'Новый чат',
-            ),
-          ],
+          IconButton(
+            icon: Icon(Icons.edit, color: Colors.white, size: 26),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => NewChatScreen()),
+              );
+            },
+            tooltip: 'Новый чат',
+          ),
         ],
       ),
     );
@@ -911,12 +1044,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (isTablet) {
             _selectChat(chat.id);
           } else {
+            // ИСПРАВЛЕНО: Обновляем чаты при возврате из ChatScreen
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => ChatScreen(chat: chat),
               ),
-            ).then((_) => _refreshChats(showIndicator: false));
+            ).then((_) {
+              print('[Home] Возврат из ChatScreen, обновляем чаты');
+              _refreshChats(showIndicator: false);
+            });
           }
         },
         onLongPress: () => _showChatOptions(chat),
