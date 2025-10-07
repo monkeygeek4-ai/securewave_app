@@ -29,7 +29,7 @@ class WebSocketManager {
   bool _isConnecting = false;
   bool _isAuthenticated = false;
   int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 10; // УВЕЛИЧЕНО с 5 до 10
+  static const int _maxReconnectAttempts = 10;
   static const Duration _connectionTimeout = Duration(seconds: 10);
 
   final _statusController = StreamController<ConnectionStatus>.broadcast();
@@ -50,7 +50,7 @@ class WebSocketManager {
 
   Future<void> connect({String? token, String? userId}) async {
     if (_channel != null && _channel!.closeCode == null) {
-      _log('Соединение уже существует и активно, не создаем новое');
+      _log('Соединение уже существует и активно');
       if (!_isAuthenticated && _token != null) {
         _log('Отправляем повторную авторизацию');
         await _authenticate();
@@ -77,7 +77,9 @@ class WebSocketManager {
 
     try {
       _statusController.add(ConnectionStatus.connecting);
+      _log('========================================');
       _log('Создаем НОВОЕ WebSocket соединение...');
+      _log('========================================');
 
       if (_channel != null) {
         try {
@@ -96,7 +98,6 @@ class WebSocketManager {
         }
       });
 
-      // ИСПРАВЛЕНО: правильное определение WebSocket URL
       final wsUrl = _getWebSocketUrl();
       _log('WebSocket URL: $wsUrl');
 
@@ -135,16 +136,13 @@ class WebSocketManager {
     }
   }
 
-  // НОВЫЙ МЕТОД: правильное определение WebSocket URL
   String _getWebSocketUrl() {
     if (kIsWeb) {
-      // Для веб-версии используем ApiService.wsUrl
       final wsUrl = ApiService.wsUrl;
       _log('Web WebSocket URL: $wsUrl');
       return wsUrl;
     } else {
-      // ДЛЯ МОБИЛЬНЫХ ПРИЛОЖЕНИЙ - используем production сервер
-      const wsUrl = 'wss://securewave.sbk-19.ru/backend/ws';
+      const wsUrl = 'wss://securewave.sbk-19.ru/ws';
       _log('Mobile WebSocket URL: $wsUrl');
       return wsUrl;
     }
@@ -273,10 +271,13 @@ class WebSocketManager {
 
         // === ОБРАБОТКА ЗВОНКОВ ===
         case 'call_offer':
-          _log('📞 ВХОДЯЩИЙ ЗВОНОК от ${data['callerName']}');
-          _log('📞 callId: ${data['callId']}');
-          _log('📞 callType: ${data['callType']}');
-          // ВАЖНО: Передаем ВСЕ данные в messageController
+          _log('========================================');
+          _log('📞 ВХОДЯЩИЙ ЗВОНОК!');
+          _log('От: ${data['callerName']}');
+          _log('callId: ${data['callId']}');
+          _log('callType: ${data['callType']}');
+          _log('========================================');
+
           _messageController.add({
             'type': 'call_offer',
             'callId': data['callId'],
@@ -308,7 +309,7 @@ class WebSocketManager {
           break;
 
         case 'call_ended':
-        case 'call_end': // ДОБАВЛЕНО: альтернативный тип
+        case 'call_end':
           _log('📞 Звонок завершен');
           _messageController.add({
             'type': 'call_ended',
@@ -319,7 +320,7 @@ class WebSocketManager {
           break;
 
         case 'call_declined':
-        case 'call_decline': // ДОБАВЛЕНО: альтернативный тип
+        case 'call_decline':
           _log('📞 Звонок отклонен');
           _messageController.add({
             'type': 'call_declined',
@@ -338,12 +339,8 @@ class WebSocketManager {
           break;
 
         case 'call_offer_sent':
-          _log('📞 Предложение звонка отправлено');
-          _messageController.add({
-            'type': 'call_offer_sent',
-            'callId': data['callId'],
-            'status': data['status'],
-          });
+          _log('📞 Подтверждение: offer отправлен на сервер');
+          // НЕ добавляем в messageController, это служебное сообщение
           break;
 
         case 'ping':
@@ -375,7 +372,10 @@ class WebSocketManager {
     _connectionTimeoutTimer?.cancel();
     _reconnectAttempts = 0;
 
-    _log('✅ Авторизация успешна. User ID: $_userId');
+    _log('========================================');
+    _log('✅ Авторизация успешна');
+    _log('User ID: $_userId');
+    _log('========================================');
 
     _statusController.add(ConnectionStatus.connected);
 
@@ -513,27 +513,51 @@ class WebSocketManager {
   }
 
   // === МЕТОДЫ ДЛЯ ЗВОНКОВ ===
-  void sendCallOffer(String callId, String chatId, String callType,
-      Map<String, dynamic> offer, String receiverId) {
-    _log('📞 Отправка call_offer: callId=$callId, receiverId=$receiverId');
-    send({
+  void sendCallOffer(
+    String callId,
+    String chatId,
+    String callType,
+    Map<String, dynamic> offer,
+    String receiverId,
+  ) {
+    _log('========================================');
+    _log('📤 ОТПРАВКА CALL_OFFER');
+    _log('callId: $callId');
+    _log('chatId: $chatId');
+    _log('receiverId: $receiverId');
+    _log('callType: $callType');
+    _log('Has offer: ${offer.isNotEmpty}');
+    _log('Offer keys: ${offer.keys.toList()}');
+    _log('========================================');
+
+    final message = {
       'type': 'call_offer',
       'callId': callId,
       'chatId': chatId,
-      'receiverId': receiverId, // ВАЖНО: добавлен receiverId
-      'to': receiverId, // ДОПОЛНИТЕЛЬНО: для совместимости с бэкендом
+      'receiverId': receiverId,
       'callType': callType,
       'offer': offer,
-    });
+    };
+
+    send(message);
+
+    _log('✅ call_offer отправлен в WebSocket');
+    _log('========================================');
   }
 
   void sendCallAnswer(String callId, Map<String, dynamic> answer) {
-    _log('📞 Отправка call_answer: callId=$callId');
+    _log('========================================');
+    _log('📤 ОТПРАВКА CALL_ANSWER');
+    _log('callId: $callId');
+    _log('========================================');
+
     send({
       'type': 'call_answer',
       'callId': callId,
       'answer': answer,
     });
+
+    _log('✅ call_answer отправлен');
   }
 
   void sendIceCandidate(String callId, Map<String, dynamic> candidate) {
@@ -545,7 +569,12 @@ class WebSocketManager {
   }
 
   void endCall(String callId, String reason) {
-    _log('📞 Отправка call_end: callId=$callId, reason=$reason');
+    _log('========================================');
+    _log('📤 ОТПРАВКА CALL_END');
+    _log('callId: $callId');
+    _log('reason: $reason');
+    _log('========================================');
+
     send({
       'type': 'call_end',
       'callId': callId,
@@ -554,7 +583,11 @@ class WebSocketManager {
   }
 
   void declineCall(String callId) {
-    _log('📞 Отправка call_decline: callId=$callId');
+    _log('========================================');
+    _log('📤 ОТПРАВКА CALL_DECLINE');
+    _log('callId: $callId');
+    _log('========================================');
+
     send({
       'type': 'call_decline',
       'callId': callId,

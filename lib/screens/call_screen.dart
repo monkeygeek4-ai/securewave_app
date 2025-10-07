@@ -1,11 +1,9 @@
 // lib/screens/call_screen.dart
+// Кроссплатформенная версия (работает на Web и Mobile)
 
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:html' as html;
-import 'dart:ui_web' as ui;
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
-import 'dart:js_util' as js_util;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../models/call.dart';
@@ -49,16 +47,9 @@ class _CallScreenState extends State<CallScreen> {
   StreamSubscription? _localStreamSubscription;
   StreamSubscription? _remoteStreamSubscription;
 
-  html.AudioElement? _remoteAudio;
-  html.VideoElement? _localVideo;
-  html.VideoElement? _remoteVideo;
-  String _localVideoViewId =
-      'local-video-${DateTime.now().millisecondsSinceEpoch}';
-  String _remoteVideoViewId =
-      'remote-video-${DateTime.now().millisecondsSinceEpoch}';
-
-  String? _attachedRemoteStreamId;
-  String? _attachedLocalStreamId;
+  // Рендереры для мобильных платформ
+  final rtc.RTCVideoRenderer _localRenderer = rtc.RTCVideoRenderer();
+  final rtc.RTCVideoRenderer _remoteRenderer = rtc.RTCVideoRenderer();
 
   @override
   void initState() {
@@ -79,10 +70,19 @@ class _CallScreenState extends State<CallScreen> {
       return;
     }
 
-    // ВАЖНО: Подписываемся на stream ПЕРЕД инициализацией звонка
+    _initRenderers();
     _listenToStreams();
-    _setupMediaElements();
     _initializeCall();
+  }
+
+  Future<void> _initRenderers() async {
+    try {
+      await _localRenderer.initialize();
+      await _remoteRenderer.initialize();
+      print('[CallScreen] Рендереры инициализированы');
+    } catch (e) {
+      print('[CallScreen] Ошибка инициализации рендереров: $e');
+    }
   }
 
   void _initializeCall() {
@@ -114,86 +114,6 @@ class _CallScreenState extends State<CallScreen> {
     print('[CallScreen] ═══════════════════════════════════');
   }
 
-  void _setupMediaElements() {
-    final isVideo =
-        _currentCall?.callType == 'video' || widget.callType == 'video';
-
-    print(
-        '[CallScreen] Настройка медиа элементов (тип: ${isVideo ? 'video' : 'audio'})');
-
-    if (isVideo) {
-      _localVideo = html.VideoElement()
-        ..autoplay = true
-        ..muted = true
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..style.objectFit = 'cover';
-
-      ui.platformViewRegistry.registerViewFactory(
-        _localVideoViewId,
-        (int viewId) => _localVideo!,
-      );
-
-      _remoteVideo = html.VideoElement()
-        ..autoplay = true
-        ..muted = false
-        ..volume = 1.0
-        ..style.width = '100%'
-        ..style.height = '100%'
-        ..style.objectFit = 'cover';
-
-      ui.platformViewRegistry.registerViewFactory(
-        _remoteVideoViewId,
-        (int viewId) => _remoteVideo!,
-      );
-    } else {
-      _remoteAudio = html.AudioElement()
-        ..autoplay = true
-        ..volume = 1.0;
-    }
-
-    print('[CallScreen] Медиа элементы созданы');
-  }
-
-  dynamic _getNativeStream(rtc.MediaStream stream) {
-    try {
-      final dynamic streamDynamic = stream;
-
-      if (streamDynamic.jsStream != null) {
-        print('[CallScreen] ✅ Получен jsStream');
-        return streamDynamic.jsStream;
-      }
-
-      print(
-          '[CallScreen] ⚠️ jsStream не найден, пробуем альтернативные методы');
-
-      try {
-        final jsStream = js_util.getProperty(streamDynamic, 'jsStream');
-        if (jsStream != null) {
-          print('[CallScreen] ✅ Получен jsStream через js_util');
-          return jsStream;
-        }
-      } catch (e) {
-        print('[CallScreen] Ошибка js_util.getProperty: $e');
-      }
-
-      try {
-        final jsStream = js_util.getProperty(streamDynamic, '_jsStream');
-        if (jsStream != null) {
-          print('[CallScreen] ✅ Получен _jsStream');
-          return jsStream;
-        }
-      } catch (e) {
-        print('[CallScreen] Ошибка получения _jsStream: $e');
-      }
-    } catch (e) {
-      print('[CallScreen] ❌ Критическая ошибка получения stream: $e');
-    }
-
-    print('[CallScreen] ❌ Не удалось получить нативный stream');
-    return null;
-  }
-
   void _listenToStreams() {
     _callStateSubscription = _webrtcService.callState.listen((call) {
       if (_isDisposing || !mounted) return;
@@ -214,173 +134,21 @@ class _CallScreenState extends State<CallScreen> {
     });
 
     _localStreamSubscription = _webrtcService.localStream.listen((stream) {
-      if (_isDisposing || !mounted) return;
+      if (_isDisposing || !mounted || stream == null) return;
 
-      if (stream != null && _localVideo != null) {
-        if (_attachedLocalStreamId == stream.id) {
-          print('[CallScreen] Локальный stream уже подключен, пропускаем');
-          return;
-        }
-
-        print('[CallScreen] Получен локальный stream');
-        _attachStreamToElement(stream, _localVideo!, isLocal: true);
-        _attachedLocalStreamId = stream.id;
-      }
+      print('[CallScreen] Получен локальный stream');
+      _localRenderer.srcObject = stream;
     });
 
     _remoteStreamSubscription = _webrtcService.remoteStream.listen((stream) {
-      if (_isDisposing || !mounted) return;
+      if (_isDisposing || !mounted || stream == null) return;
 
-      if (stream != null) {
-        if (_attachedRemoteStreamId == stream.id) {
-          print('[CallScreen] Удаленный stream уже подключен, пропускаем');
-          return;
-        }
+      print('[CallScreen] Получен удаленный stream');
+      print('[CallScreen] Stream ID: ${stream.id}');
+      print('[CallScreen] Аудио треков: ${stream.getAudioTracks().length}');
+      print('[CallScreen] Видео треков: ${stream.getVideoTracks().length}');
 
-        print('[CallScreen] Получен удаленный stream');
-        print('[CallScreen] Stream ID: ${stream.id}');
-        print('[CallScreen] Аудио треков: ${stream.getAudioTracks().length}');
-        print('[CallScreen] Видео треков: ${stream.getVideoTracks().length}');
-
-        final isVideo =
-            _currentCall?.callType == 'video' || widget.callType == 'video';
-
-        if (isVideo && _remoteVideo != null) {
-          _attachStreamToElement(stream, _remoteVideo!, isLocal: false);
-          _attachedRemoteStreamId = stream.id;
-        } else if (!isVideo && _remoteAudio != null) {
-          _attachStreamToAudio(stream, _remoteAudio!);
-          _attachedRemoteStreamId = stream.id;
-        }
-      }
-    });
-  }
-
-  void _attachStreamToElement(rtc.MediaStream stream, html.MediaElement element,
-      {required bool isLocal}) {
-    if (_isDisposing) return;
-
-    try {
-      final nativeStream = _getNativeStream(stream);
-
-      if (nativeStream == null) {
-        print(
-            '[CallScreen] ❌ Не удалось получить нативный stream для ${isLocal ? 'локального' : 'удаленного'} видео');
-        return;
-      }
-
-      print(
-          '[CallScreen] Подключение ${isLocal ? 'локального' : 'удаленного'} stream');
-
-      element.srcObject = nativeStream;
-      print(
-          '[CallScreen] srcObject установлен для ${isLocal ? 'локального' : 'удаленного'} stream');
-
-      if (!isLocal) {
-        element.volume = 1.0;
-        element.muted = false;
-
-        print('[CallScreen] Вызываем play() для удаленного stream');
-
-        element.play().then((_) {
-          if (_isDisposing) return;
-          print('[CallScreen] 🔊 Удаленный stream воспроизводится ✅');
-          _checkAudioTracks(nativeStream);
-        }).catchError((e) {
-          if (_isDisposing) return;
-          print('[CallScreen] ❌ Ошибка воспроизведения: $e');
-          _retryPlayback(element, nativeStream, attempt: 1);
-        });
-      } else {
-        print('[CallScreen] Локальный stream подключен ✅');
-      }
-    } catch (e) {
-      print('[CallScreen] ❌ Ошибка подключения stream: $e');
-    }
-  }
-
-  void _attachStreamToAudio(rtc.MediaStream stream, html.AudioElement audio) {
-    if (_isDisposing) return;
-
-    try {
-      final nativeStream = _getNativeStream(stream);
-
-      if (nativeStream == null) {
-        print('[CallScreen] ❌ Не удалось получить нативный stream для аудио');
-        return;
-      }
-
-      print('[CallScreen] Подключение аудио stream');
-      print('[CallScreen] Native stream type: ${nativeStream.runtimeType}');
-
-      audio.srcObject = nativeStream;
-      audio.volume = 1.0;
-      audio.autoplay = true;
-
-      audio.play().then((_) {
-        if (_isDisposing) return;
-        print('[CallScreen] 🔊 Аудио stream воспроизводится ✅');
-        print('[CallScreen] Audio Volume: ${audio.volume}');
-        print('[CallScreen] Audio Muted: ${audio.muted}');
-        _checkAudioTracks(nativeStream);
-      }).catchError((e) {
-        if (_isDisposing) return;
-        print('[CallScreen] ❌ Ошибка воспроизведения аудио: $e');
-        _retryPlayback(audio, nativeStream, attempt: 1);
-      });
-    } catch (e) {
-      print('[CallScreen] ❌ Ошибка подключения аудио stream: $e');
-    }
-  }
-
-  void _checkAudioTracks(dynamic nativeStream) {
-    if (_isDisposing) return;
-
-    try {
-      final audioTracks =
-          js_util.callMethod(nativeStream, 'getAudioTracks', []);
-      final trackCount = js_util.getProperty(audioTracks, 'length');
-      print('[CallScreen] 🎵 Аудио треков: $trackCount');
-
-      if (trackCount > 0) {
-        final firstTrack = audioTracks[0];
-        final enabled = js_util.getProperty(firstTrack, 'enabled');
-        final readyState = js_util.getProperty(firstTrack, 'readyState');
-        final muted = js_util.getProperty(firstTrack, 'muted');
-
-        print('[CallScreen] 🎵 Трек enabled: $enabled');
-        print('[CallScreen] 🎵 Трек readyState: $readyState');
-        print('[CallScreen] 🎵 Трек muted: $muted');
-      }
-    } catch (e) {
-      print('[CallScreen] Ошибка проверки аудио треков: $e');
-    }
-  }
-
-  void _retryPlayback(html.MediaElement element, dynamic nativeStream,
-      {required int attempt}) {
-    if (_isDisposing || attempt > 3) {
-      if (attempt > 3) {
-        print('[CallScreen] ❌ Превышено количество попыток воспроизведения');
-      }
-      return;
-    }
-
-    final delay = Duration(milliseconds: 300 * attempt);
-
-    Future.delayed(delay, () {
-      if (_isDisposing) return;
-
-      print('[CallScreen] 🔄 Попытка $attempt: повторное воспроизведение...');
-
-      element.play().then((_) {
-        if (_isDisposing) return;
-        print('[CallScreen] 🔊 Попытка $attempt успешна ✅');
-      }).catchError((e) {
-        if (_isDisposing) return;
-        print('[CallScreen] ❌ Попытка $attempt не удалась: $e');
-        _retryPlayback(element, nativeStream, attempt: attempt + 1);
-      });
+      _remoteRenderer.srcObject = stream;
     });
   }
 
@@ -417,14 +185,6 @@ class _CallScreenState extends State<CallScreen> {
     setState(() {
       _isSpeakerOn = !_isSpeakerOn;
     });
-
-    if (_remoteVideo != null) {
-      _remoteVideo!.volume = _isSpeakerOn ? 1.0 : 0.5;
-    }
-    if (_remoteAudio != null) {
-      _remoteAudio!.volume = _isSpeakerOn ? 1.0 : 0.5;
-    }
-
     _webrtcService.toggleSpeaker();
   }
 
@@ -448,38 +208,31 @@ class _CallScreenState extends State<CallScreen> {
 
     print('[CallScreen] Завершение звонка');
 
-    // Вычисляем длительность
     final duration = _callDuration.inSeconds;
     final isVideo =
         _currentCall?.callType == 'video' || widget.callType == 'video';
     final chatId = widget.chatId ?? _currentCall?.chatId;
 
-    // ВАЖНО: Определяем кто инициатор звонка
     final isInitiator = _currentCall?.status != CallStatus.incoming;
     final wasAccepted = _currentCall?.status == CallStatus.active;
 
     _webrtcService.endCall();
 
-    // Создаем сообщение о звонке
     if (mounted && chatId != null) {
       try {
         final chatProvider = context.read<ChatProvider>();
         String callStatus;
 
-        // Определяем статус звонка
         if (wasAccepted && duration > 0) {
-          // Звонок состоялся
           callStatus = isInitiator ? 'outgoing' : 'incoming';
         } else if (isInitiator) {
-          // Инициатор звонка, но звонок не состоялся
           if (_currentCall?.status == CallStatus.declined) {
-            callStatus = 'rejected'; // Отклонен
+            callStatus = 'rejected';
           } else {
-            callStatus = 'cancelled'; // Отменен
+            callStatus = 'cancelled';
           }
         } else {
-          // Получатель звонка, но не ответил
-          callStatus = 'missed'; // Пропущенный
+          callStatus = 'missed';
         }
 
         final callMessage = Message.createCallMessage(
@@ -514,13 +267,6 @@ class _CallScreenState extends State<CallScreen> {
     _localStreamSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
 
-    _remoteAudio?.srcObject = null;
-    _remoteVideo?.srcObject = null;
-    _localVideo?.srcObject = null;
-
-    _attachedRemoteStreamId = null;
-    _attachedLocalStreamId = null;
-
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -543,9 +289,8 @@ class _CallScreenState extends State<CallScreen> {
     _localStreamSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
 
-    _remoteAudio?.srcObject = null;
-    _remoteVideo?.srcObject = null;
-    _localVideo?.srcObject = null;
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
 
     super.dispose();
   }
@@ -559,7 +304,6 @@ class _CallScreenState extends State<CallScreen> {
     final isCalling = _currentCall?.status == CallStatus.calling;
     final isConnecting = _currentCall?.status == CallStatus.connecting;
 
-    // УСИЛЕННАЯ ОТЛАДКА
     print('═══════════════════════════════════════════════');
     print('[CallScreen] 🎨 BUILD вызван');
     print('[CallScreen] _currentCall != null: ${_currentCall != null}');
@@ -572,9 +316,6 @@ class _CallScreenState extends State<CallScreen> {
     print('[CallScreen] isActive: $isActive');
     print('[CallScreen] isCalling: $isCalling');
     print('[CallScreen] isConnecting: $isConnecting');
-    print(
-        '[CallScreen] Показать кнопки (isActive || isCalling || isConnecting): ${isActive || isCalling || isConnecting}');
-    print('[CallScreen] Показать входящие (isIncoming): $isIncoming');
     print('═══════════════════════════════════════════════');
 
     return Scaffold(
@@ -590,10 +331,11 @@ class _CallScreenState extends State<CallScreen> {
           child: Stack(
             children: [
               // Удаленное видео на весь экран
-              if (isVideo && (isActive || isConnecting) && _remoteVideo != null)
+              if (isVideo && (isActive || isConnecting))
                 Positioned.fill(
-                  child: HtmlElementView(viewType: _remoteVideoViewId),
+                  child: rtc.RTCVideoView(_remoteRenderer, mirror: false),
                 ),
+
               // Информация о звонке
               Positioned(
                 top: 0,
@@ -655,10 +397,11 @@ class _CallScreenState extends State<CallScreen> {
                   ),
                 ),
               ),
+
               // Локальное видео (маленькое окно)
               if (isVideo &&
                   (isActive || isConnecting || isCalling) &&
-                  _localVideo != null)
+                  !_isVideoOff)
                 Positioned(
                   top: 50,
                   right: 20,
@@ -667,6 +410,7 @@ class _CallScreenState extends State<CallScreen> {
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white, width: 2),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black45,
@@ -675,11 +419,12 @@ class _CallScreenState extends State<CallScreen> {
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: HtmlElementView(viewType: _localVideoViewId),
+                      borderRadius: BorderRadius.circular(10),
+                      child: rtc.RTCVideoView(_localRenderer, mirror: true),
                     ),
                   ),
                 ),
+
               // Кнопки управления
               Positioned(
                 bottom: 0,
@@ -700,9 +445,7 @@ class _CallScreenState extends State<CallScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Кнопки для активного звонка или во время вызова
                       if (isActive || isCalling || isConnecting) ...[
-                        // Показываем кнопки управления только для активного звонка
                         if (isActive) ...[
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -743,7 +486,6 @@ class _CallScreenState extends State<CallScreen> {
                           ),
                           SizedBox(height: 40),
                         ],
-                        // Кнопка завершения звонка (всегда видна)
                         GestureDetector(
                           onTap: _endCall,
                           child: Container(
@@ -768,12 +510,10 @@ class _CallScreenState extends State<CallScreen> {
                           ),
                         ),
                       ],
-                      // Кнопки для входящего звонка
                       if (isIncoming) ...[
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            // Кнопка отклонить
                             GestureDetector(
                               onTap: _declineCall,
                               child: Container(
@@ -798,7 +538,6 @@ class _CallScreenState extends State<CallScreen> {
                               ),
                             ),
                             SizedBox(width: 100),
-                            // Кнопка принять
                             GestureDetector(
                               onTap: _acceptCall,
                               child: Container(

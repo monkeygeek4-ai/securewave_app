@@ -3,7 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'dart:html' as html;
+import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
@@ -18,6 +19,7 @@ class ProfileSettingsScreen extends StatefulWidget {
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _api = ApiService();
+  final _picker = ImagePicker();
 
   final _usernameController = TextEditingController();
   final _fullNameController = TextEditingController();
@@ -67,25 +69,24 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
-    final input = html.FileUploadInputElement()..accept = 'image/*';
-    input.click();
-
-    await input.onChange.first;
-    final files = input.files;
-    if (files == null || files.isEmpty) return;
-
-    final file = files[0];
-    final reader = html.FileReader();
-
-    setState(() => _isLoading = true);
-
-    reader.readAsDataUrl(file);
-    await reader.onLoad.first;
-
     try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      setState(() => _isLoading = true);
+
+      final bytes = await image.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
       final response = await _api.post('/users/upload-avatar', {
-        'avatar': reader.result.toString(),
-        'filename': file.name,
+        'avatar': 'data:image/jpeg;base64,$base64Image',
+        'filename': image.name,
       });
 
       if (response['success'] == true) {
@@ -395,10 +396,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               style:
                   TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
               decoration: InputDecoration(
-                labelText: 'Никнейм (как в Telegram)',
+                labelText: 'Никнейм',
                 labelStyle: TextStyle(
                     color: isDarkMode ? Colors.white70 : Colors.black54),
-                helperText: 'Используется в ссылках: securewave.com/@nickname',
+                helperText: 'Используется в ссылках',
                 helperStyle: TextStyle(
                     color: isDarkMode ? Colors.white60 : Colors.black45),
                 prefixIcon:

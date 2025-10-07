@@ -99,23 +99,52 @@ class WebRTCService {
     }
   }
 
+  bool get isReady {
+    final ready = _callStateController != null &&
+        !_callStateController!.isClosed &&
+        _currentCall == null &&
+        _peerConnection == null;
+
+    print('[WebRTC] 🔍 Проверка готовности: $ready');
+    if (!ready) {
+      print(
+          '[WebRTC]   - Controller: ${_callStateController != null ? "OK" : "NULL"}');
+      print('[WebRTC]   - Closed: ${_callStateController?.isClosed ?? true}');
+      print(
+          '[WebRTC]   - Current call: ${_currentCall == null ? "NONE" : "EXISTS"}');
+      print(
+          '[WebRTC]   - Peer connection: ${_peerConnection == null ? "NONE" : "EXISTS"}');
+    }
+
+    return ready;
+  }
+
   Future<void> initialize(String userId) async {
     try {
       _currentUserId = userId;
       print('[WebRTC] ========================================');
       print('[WebRTC] Инициализация для пользователя: $userId');
-      print('[WebRTC] ========================================');
 
-      if (_callStateController == null || _callStateController!.isClosed) {
-        print('[WebRTC] Переинициализация stream controllers');
-        _initializeStreams();
+      // Проверяем, не осталось ли что-то от предыдущего звонка
+      if (_peerConnection != null || _localStream != null) {
+        print('[WebRTC] ⚠️ Обнаружены остатки предыдущего звонка, очищаем');
+        _cleanup();
       }
+
+      // Всегда переинициализируем stream controllers
+      print('[WebRTC] 🔄 Переинициализация stream controllers');
+      _initializeStreams();
 
       _wsSubscription?.cancel();
 
-      print('[WebRTC] Подписываемся на WebSocket сообщения...');
-      _wsSubscription =
-          WebSocketManager.instance.messages.listen(_handleWebSocketMessage);
+      print('[WebRTC] 🔌 Подписываемся на WebSocket сообщения...');
+      _wsSubscription = WebSocketManager.instance.messages.listen(
+        _handleWebSocketMessage,
+        onError: (error) {
+          print('[WebRTC] ❌ Ошибка WebSocket подписки: $error');
+        },
+        cancelOnError: false, // Не отменять подписку при ошибках
+      );
 
       print('[WebRTC] ✅ Сервис успешно инициализирован');
       print('[WebRTC] ✅ Подписка на WebSocket активна');
@@ -123,7 +152,7 @@ class WebRTCService {
       print('[WebRTC] ========================================');
     } catch (e) {
       print('[WebRTC] ❌ Ошибка инициализации: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -147,12 +176,12 @@ class WebRTCService {
         _handleIceCandidate(message);
         break;
       case 'call_ended':
-      case 'call_end': // ДОБАВЛЕНО: альтернативный тип
+      case 'call_end':
         print('[WebRTC] 📞 Звонок завершен');
         _handleCallEnded(message);
         break;
       case 'call_declined':
-      case 'call_decline': // ДОБАВЛЕНО: альтернативный тип
+      case 'call_decline':
         print('[WebRTC] 📞 Звонок отклонен');
         _handleCallDeclined(message);
         break;
@@ -169,6 +198,14 @@ class WebRTCService {
     required String callType,
   }) async {
     try {
+      // Проверка готовности
+      if (!isReady) {
+        print(
+            '[WebRTC] ⚠️ Сервис не готов к новому звонку, переинициализируем');
+        await initialize(_currentUserId!);
+        await Future.delayed(Duration(milliseconds: 500));
+      }
+
       print('[WebRTC] ========================================');
       print('[WebRTC] 📞 Начинаем звонок: $callType с $receiverName');
       print('[WebRTC] callId: $callId');
@@ -207,7 +244,6 @@ class WebRTCService {
 
       print('[WebRTC] ✅ Offer отправлен, ожидаем answer...');
 
-      // Таймаут для диагностики
       Timer(Duration(seconds: 15), () {
         if (_currentCall != null &&
             (_currentCall!.status == CallStatus.calling ||
@@ -370,11 +406,9 @@ class WebRTCService {
         startTime: DateTime.now(),
       );
 
-      // КРИТИЧЕСКИ ВАЖНО: отправляем в stream НЕМЕДЛЕННО
       print('[WebRTC] 📢 Отправка входящего звонка в callState stream');
       _safeAddToCallState(_currentCall);
 
-      // Сохраняем offer для последующего использования
       _currentCall = _currentCall!.copyWith(
         offer: message['offer'],
       );
@@ -598,19 +632,27 @@ class WebRTCService {
     print('[WebRTC] ========================================');
 
     if (_currentCall != null) {
-      WebSocketManager.instance.endCall(_currentCall!.id, reason ?? 'user');
-      _cleanup();
+      final callId = _currentCall!.id;
 
+      // Отправляем сообщение о завершении
+      WebSocketManager.instance.endCall(callId, reason ?? 'user');
+
+      // Обновляем статус
       _currentCall = _currentCall!.copyWith(
         status: CallStatus.ended,
         endTime: DateTime.now(),
       );
       _safeAddToCallState(_currentCall);
 
-      Future.delayed(Duration(seconds: 2), () {
-        _currentCall = null;
-        _safeAddToCallState(null);
-      });
+      // Очищаем ресурсы
+      _cleanup();
+
+      // Сбрасываем состояние через 2 секунды
+      await Future.delayed(Duration(seconds: 2));
+      _currentCall = null;
+      _safeAddToCallState(null);
+
+      print('[WebRTC] ✅ Звонок полностью завершен, готов к новому вызову');
     }
   }
 
@@ -653,7 +695,7 @@ class WebRTCService {
 
     _peerConnection = null;
     _iceCandidatesQueue.clear();
-    _isRemoteDescriptionSet = false;
+    _isRemoteDescriptionSet = false; // КРИТИЧНО: Сброс флага!
 
     print('[WebRTC] ✅ Очистка завершена');
   }

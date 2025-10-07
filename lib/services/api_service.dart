@@ -18,16 +18,19 @@ class ApiService {
 
   static String get baseUrl {
     if (kIsWeb) {
+      // Для веб-версии
       return 'https://securewave.sbk-19.ru/backend/api';
     }
-    return 'http://10.0.2.2:8080/backend/api';
+    // Для Android - используйте IP вашего компьютера в локальной сети
+    // Узнать IP: ifconfig (Mac/Linux) или ipconfig (Windows)
+    return 'https://securewave.sbk-19.ru/backend/api';
   }
 
   static String get wsUrl {
     if (kIsWeb) {
       return 'wss://securewave.sbk-19.ru/ws';
     }
-    return 'ws://10.0.2.2:8085';
+    return 'wss://securewave.sbk-19.ru/ws';
   }
 
   void _log(String message) {
@@ -47,8 +50,8 @@ class ApiService {
   void _initializeDio() {
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -86,7 +89,8 @@ class ApiService {
       onError: (DioException error, handler) {
         _log(
             'Ошибка [${error.response?.statusCode}]: ${error.requestOptions.path}');
-        _log('Детали ошибки: ${error.response?.data}');
+        _log('Детали ошибки: ${error.message}');
+        _log('Response data: ${error.response?.data}');
 
         if (error.response?.statusCode == 403 ||
             error.response?.statusCode == 401) {
@@ -186,7 +190,9 @@ class ApiService {
 
   Future<Map<String, dynamic>> login(String username, String password) async {
     try {
+      _log('=== НАЧАЛО ВХОДА ===');
       _log('Вход для пользователя: $username');
+      _log('URL: $baseUrl/auth/login');
 
       await clearToken();
 
@@ -208,26 +214,42 @@ class ApiService {
 
         if (token != null) {
           await _saveToken(token);
-          _log('Токен получен и сохранен');
+          _log('✅ Токен получен и сохранен');
         } else {
-          _log('Внимание: токен не найден в ответе');
+          _log('⚠️ Внимание: токен не найден в ответе');
           _log('Ключи ответа: ${data.keys.toList()}');
         }
 
+        _log('=== ВХОД УСПЕШЕН ===');
         return data;
       } else if (response.statusCode == 403 || response.statusCode == 401) {
+        _log('❌ Неверные учетные данные');
         throw 'Неверное имя пользователя или пароль';
       } else {
+        _log('❌ Ошибка входа: ${response.statusCode}');
         throw 'Ошибка входа: ${response.statusCode}';
       }
     } on DioException catch (e) {
-      _log('DioException при входе: $e');
+      _log('❌ DioException при входе: ${e.message}');
+      _log('Type: ${e.type}');
+      _log('Response: ${e.response?.data}');
+
       if (e.response?.statusCode == 403 || e.response?.statusCode == 401) {
         throw 'Неверное имя пользователя или пароль';
       }
+
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw 'Превышено время ожидания. Проверьте подключение к интернету.';
+      }
+
+      if (e.type == DioExceptionType.connectionError) {
+        throw 'Ошибка подключения к серверу. Проверьте интернет-соединение.';
+      }
+
       throw 'Ошибка подключения. Попробуйте еще раз.';
     } catch (e) {
-      _log('Ошибка входа: $e');
+      _log('❌ Ошибка входа: $e');
       rethrow;
     }
   }
@@ -421,7 +443,6 @@ class ApiService {
     }
   }
 
-  // ОБНОВЛЕНО: Метод sendMessage с поддержкой type и metadata
   Future<Message?> sendMessage(
     String chatId,
     String content, {

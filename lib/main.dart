@@ -15,11 +15,10 @@ import 'services/webrtc_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
-// ИСПРАВЛЕНО: Условный импорт для веб-версии
+// Проверка инвайт-кода в URL (только для веб)
 String? _checkInviteLink() {
   if (kIsWeb) {
     try {
-      // Для веб используем dart:html
       final html = Uri.base;
       print('[Init] Текущий URL: ${html.toString()}');
       print('[Init] Путь: ${html.path}');
@@ -33,7 +32,7 @@ String? _checkInviteLink() {
         }
       }
     } catch (e) {
-      print('[Init] Ошибка при проверке URL: $e');
+      print('[Init] ⚠️ Ошибка при проверке URL: $e');
     }
   }
   return null;
@@ -83,9 +82,11 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: themeProvider.themeMode,
+          // КРИТИЧНО: Всегда используем home, игнорируя URL
           home: CallOverlayWrapper(
-            child: _buildHome(authProvider, context),
+            child: InitializationWrapper(),
           ),
+          // Маршруты для программной навигации
           routes: {
             '/login': (context) => LoginScreen(),
             '/register': (context) => RegisterScreen(),
@@ -95,58 +96,174 @@ class MyApp extends StatelessWidget {
       },
     );
   }
+}
 
-  Widget _buildHome(AuthProvider authProvider, BuildContext context) {
-    // Проверяем инвайт-код (только для веб)
-    String? inviteCode = _checkInviteLink();
-    if (inviteCode != null) {
-      return InviteRegisterScreen(inviteCode: inviteCode);
+// Виджет инициализации приложения
+class InitializationWrapper extends StatefulWidget {
+  @override
+  _InitializationWrapperState createState() => _InitializationWrapperState();
+}
+
+class _InitializationWrapperState extends State<InitializationWrapper> {
+  bool _isInitializing = true;
+  bool _isAuthenticated = false;
+  String? _inviteCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    print('[Init] ========================================');
+    print('[Init] Начало инициализации приложения');
+    print('[Init] ========================================');
+
+    try {
+      // Проверяем инвайт-код (только для /invite/XXX)
+      _inviteCode = _checkInviteLink();
+
+      if (_inviteCode != null) {
+        print('[Init] 🎫 Обнаружен инвайт-код, показываем регистрацию');
+        setState(() {
+          _isInitializing = false;
+          _isAuthenticated = false;
+        });
+        return;
+      }
+
+      // КРИТИЧНО: Проверяем авторизацию ВСЕГДА, игнорируя URL
+      final authProvider = context.read<AuthProvider>();
+
+      print('[Init] 🔍 Проверка авторизации...');
+      await authProvider.checkAuth();
+
+      if (!mounted) return;
+
+      if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+        print('[Init] ========================================');
+        print('[Init] ✅ Пользователь авторизован');
+        print('[Init] 👤 Username: ${authProvider.currentUser!.username}');
+        print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
+        print('[Init] ========================================');
+
+        // Инициализируем WebRTC
+        print('[Init] 🔌 Инициализация WebRTC...');
+        try {
+          await WebRTCService.instance.initialize(
+            authProvider.currentUser!.id.toString(),
+          );
+          print('[Init] ✅ WebRTC успешно инициализирован');
+        } catch (e) {
+          print('[Init] ⚠️ Ошибка инициализации WebRTC: $e');
+        }
+
+        // Загружаем чаты
+        final chatProvider = context.read<ChatProvider>();
+        print('[Init] 📨 Загружаем чаты...');
+        chatProvider.setCurrentUserId(authProvider.currentUser!.id.toString());
+
+        try {
+          await chatProvider.loadChats();
+          print('[Init] ✅ Чаты загружены (${chatProvider.chats.length} шт.)');
+        } catch (e) {
+          print('[Init] ⚠️ Ошибка загрузки чатов: $e');
+        }
+
+        setState(() {
+          _isAuthenticated = true;
+          _isInitializing = false;
+        });
+      } else {
+        print('[Init] ========================================');
+        print('[Init] ℹ️ Пользователь не авторизован');
+        print('[Init] ========================================');
+
+        setState(() {
+          _isAuthenticated = false;
+          _isInitializing = false;
+        });
+      }
+    } catch (e, stackTrace) {
+      print('[Init] ========================================');
+      print('[Init] ❌ КРИТИЧЕСКАЯ ОШИБКА инициализации');
+      print('[Init] Ошибка: $e');
+      print('[Init] Stack trace: $stackTrace');
+      print('[Init] ========================================');
+
+      setState(() {
+        _isAuthenticated = false;
+        _isInitializing = false;
+      });
     }
 
-    // Показываем загрузку пока проверяется авторизация
-    if (authProvider.isLoading) {
+    print('[Init] ========================================');
+    print('[Init] Инициализация завершена');
+    print('[Init] Статус авторизации: $_isAuthenticated');
+    print('[Init] ========================================');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Показываем загрузку
+    if (_isInitializing) {
       return Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF7C3AED),
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+            ),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '🔐',
+                  style: TextStyle(fontSize: 80),
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'SecureWave',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 40),
+                CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+                SizedBox(height: 20),
+                Text(
+                  'Загрузка...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
 
-    // Если пользователь авторизован
-    if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      print('[Init] ========================================');
-      print(
-          '[Init] Пользователь авторизован: ${authProvider.currentUser?.username}');
-      print('[Init] User ID: ${authProvider.currentUser?.id}');
-      print('[Init] ========================================');
-
-      // КРИТИЧЕСКИ ВАЖНО: Инициализация WebRTC для входящих звонков
-      WebRTCService.instance.initialize(authProvider.currentUser!.id).then((_) {
-        print('[Init] ✅ WebRTC успешно инициализирован');
-      }).catchError((e) {
-        print('[Init] ❌ Ошибка инициализации WebRTC: $e');
-      });
-
-      // Загружаем чаты
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        final chatProvider = context.read<ChatProvider>();
-        print(
-            '[Init] 📨 Загружаем чаты для пользователя ${authProvider.currentUser!.id}');
-        chatProvider.loadChats();
-      });
-
-      return HomeScreen();
+    // Если есть инвайт-код
+    if (_inviteCode != null) {
+      return InviteRegisterScreen(inviteCode: _inviteCode!);
     }
 
-    // Показываем экран входа
-    print('[Init] ℹ️ Пользователь не авторизован, показываем экран входа');
-    return LoginScreen();
+    // КРИТИЧНО: Показываем HomeScreen если авторизован, иначе LoginScreen
+    return _isAuthenticated ? HomeScreen() : LoginScreen();
   }
 }
 
-// Виджет для отображения входящих звонков
+// Виджет для отображения входящих звонков поверх всего приложения
 class CallOverlayWrapper extends StatefulWidget {
   final Widget child;
 
@@ -181,10 +298,14 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
       (call) {
         print('[CallOverlay] ========================================');
         print('[CallOverlay] 📨 Получено обновление звонка');
-        print('[CallOverlay] Call ID: ${call?.id}');
-        print('[CallOverlay] Status: ${call?.status}');
-        print('[CallOverlay] Caller: ${call?.callerName}');
-        print('[CallOverlay] Type: ${call?.callType}');
+        print('[CallOverlay] Call: ${call != null ? "EXISTS" : "NULL"}');
+
+        if (call != null) {
+          print('[CallOverlay]   - ID: ${call.id}');
+          print('[CallOverlay]   - Status: ${call.status}');
+          print('[CallOverlay]   - Caller: ${call.callerName}');
+          print('[CallOverlay]   - Type: ${call.callType}');
+        }
         print('[CallOverlay] ========================================');
 
         if (!mounted) {
@@ -230,17 +351,18 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     return Stack(
       children: [
         widget.child,
+
+        // Overlay для входящего звонка
         if (_incomingCall != null)
           Positioned.fill(
             child: Container(
-              color: Colors.black
-                  .withOpacity(0.8), // УВЕЛИЧЕНО для лучшей видимости
+              color: Colors.black.withOpacity(0.8),
               child: IncomingCallOverlay(
                 incomingCall: _incomingCall!,
                 onDismiss: () {
                   print(
                       '[CallOverlay] ========================================');
-                  print('[CallOverlay] onDismiss вызван');
+                  print('[CallOverlay] onDismiss вызван вручную');
                   print(
                       '[CallOverlay] ========================================');
                   setState(() {
