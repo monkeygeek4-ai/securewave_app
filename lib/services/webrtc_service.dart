@@ -162,6 +162,18 @@ class WebRTCService {
     print('[WebRTC] Данные: $message');
     print('[WebRTC] ========================================');
 
+    // Игнорируемые служебные сообщения
+    const ignoredTypes = {
+      'call_offer_sent',
+      'call_answer_sent',
+      'ice_candidate_sent',
+    };
+
+    if (ignoredTypes.contains(message['type'])) {
+      print('[WebRTC] ℹ️ Служебное сообщение (игнорируется)');
+      return;
+    }
+
     switch (message['type']) {
       case 'call_offer':
         print('[WebRTC] 📞 Обработка входящего звонка');
@@ -407,6 +419,13 @@ class WebRTCService {
       );
 
       print('[WebRTC] 📢 Отправка входящего звонка в callState stream');
+
+      // DEBUG: Проверка состояния stream controller
+      print('[WebRTC] 🔍 DEBUG: Проверка stream controller');
+      print('[WebRTC] 🔍 Controller null? ${_callStateController == null}');
+      print('[WebRTC] 🔍 Controller closed? ${_callStateController?.isClosed}');
+      print('[WebRTC] 🔍 Has listeners? ${_callStateController?.hasListener}');
+
       _safeAddToCallState(_currentCall);
 
       _currentCall = _currentCall!.copyWith(

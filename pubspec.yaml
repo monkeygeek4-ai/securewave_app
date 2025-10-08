@@ -14,12 +14,12 @@ dependencies:
   cupertino_icons: ^1.0.6
   animations: ^2.0.10
   shimmer: ^3.0.0
-  flutter_slidable: ^3.0.1
+  flutter_slidable: ^3.1.1
   mask_text_input_formatter: ^2.9.0
   
   # Сетевые запросы
-  http: ^1.1.0
-  dio: ^5.4.0
+  http: ^1.2.0
+  dio: ^5.4.3
   web_socket_channel: ^2.4.0
   
   # Хранение данных
@@ -28,33 +28,39 @@ dependencies:
   hive_flutter: ^1.1.0
   
   # Управление состоянием
-  provider: ^6.1.1
+  provider: ^6.1.2
   
-  # Работа с медиа
-  image_picker: ^1.0.5
-  file_picker: ^6.1.1
+  # Работа с медиа - ОБНОВЛЕНО
+  image_picker: ^1.0.7
+  file_picker: ^8.1.4  # ОБНОВЛЕНО: последняя версия
   cached_network_image: ^3.3.1
   video_player: ^2.8.2
   
   # Утилиты
-  intl: ^0.18.1
-  timeago: ^3.6.0
-  uuid: ^4.2.2
+  intl: ^0.19.0
+  timeago: ^3.6.1
+  uuid: ^4.3.3
   crypto: ^3.0.3
-  flutter_webrtc: ^1.2.0
+  flutter_webrtc: ^1.2.0  # ОБНОВЛЕНО: стабильная версия
   
   # Иконки и изображения
-  flutter_svg: ^2.0.9
-  font_awesome_flutter: ^10.10.0
+  flutter_svg: ^2.0.10
+  font_awesome_flutter: ^10.7.0
+
+  #Пуш увидомления
+  firebase_core: ^4.1.1
+  firebase_messaging: ^16.0.2
+  flutter_local_notifications: ^19.4.2
+
   
-  # Уведомления (для web)
-  flutter_local_notifications: ^16.3.0
+  # Уведомления - УДАЛЕНО для упрощения
+  # flutter_local_notifications: ^16.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.1
-  build_runner: ^2.4.7
+  flutter_lints: ^3.0.2
+  build_runner: ^2.4.8
   hive_generator: ^2.0.1
 
 flutter:

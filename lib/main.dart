@@ -11,6 +11,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/invite_register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/call_screen.dart';
 import 'services/webrtc_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
@@ -82,11 +83,9 @@ class MyApp extends StatelessWidget {
             useMaterial3: true,
           ),
           themeMode: themeProvider.themeMode,
-          // КРИТИЧНО: Всегда используем home, игнорируя URL
           home: CallOverlayWrapper(
             child: InitializationWrapper(),
           ),
-          // Маршруты для программной навигации
           routes: {
             '/login': (context) => LoginScreen(),
             '/register': (context) => RegisterScreen(),
@@ -121,7 +120,6 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
     print('[Init] ========================================');
 
     try {
-      // Проверяем инвайт-код (только для /invite/XXX)
       _inviteCode = _checkInviteLink();
 
       if (_inviteCode != null) {
@@ -133,7 +131,6 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         return;
       }
 
-      // КРИТИЧНО: Проверяем авторизацию ВСЕГДА, игнорируя URL
       final authProvider = context.read<AuthProvider>();
 
       print('[Init] 🔍 Проверка авторизации...');
@@ -148,18 +145,25 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
         print('[Init] ========================================');
 
-        // Инициализируем WebRTC
         print('[Init] 🔌 Инициализация WebRTC...');
         try {
           await WebRTCService.instance.initialize(
             authProvider.currentUser!.id.toString(),
           );
           print('[Init] ✅ WebRTC успешно инициализирован');
+
+          print('[Init] 🔍 DEBUG: Проверка WebRTC после init');
+          print(
+              '[Init] 🔍 callState stream: ${WebRTCService.instance.callState}');
+
+          if (mounted) {
+            print('[Init] 📢 Вызываем _notifyWebRTCReady()');
+            _notifyWebRTCReady();
+          }
         } catch (e) {
           print('[Init] ⚠️ Ошибка инициализации WebRTC: $e');
         }
 
-        // Загружаем чаты
         final chatProvider = context.read<ChatProvider>();
         print('[Init] 📨 Загружаем чаты...');
         chatProvider.setCurrentUserId(authProvider.currentUser!.id.toString());
@@ -204,9 +208,19 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
     print('[Init] ========================================');
   }
 
+  void _notifyWebRTCReady() {
+    final callOverlayState =
+        context.findAncestorStateOfType<_CallOverlayWrapperState>();
+    if (callOverlayState != null) {
+      print('[Init] 📢 Уведомляем CallOverlay о готовности WebRTC');
+      callOverlayState.onWebRTCReady();
+    } else {
+      print('[Init] ⚠️ CallOverlayWrapper не найден в дереве виджетов');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Показываем загрузку
     if (_isInitializing) {
       return Scaffold(
         body: Container(
@@ -253,12 +267,10 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
       );
     }
 
-    // Если есть инвайт-код
     if (_inviteCode != null) {
       return InviteRegisterScreen(inviteCode: _inviteCode!);
     }
 
-    // КРИТИЧНО: Показываем HomeScreen если авторизован, иначе LoginScreen
     return _isAuthenticated ? HomeScreen() : LoginScreen();
   }
 }
@@ -271,11 +283,17 @@ class CallOverlayWrapper extends StatefulWidget {
 
   @override
   _CallOverlayWrapperState createState() => _CallOverlayWrapperState();
+
+  static _CallOverlayWrapperState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_CallOverlayWrapperState>();
+  }
 }
 
 class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   Call? _incomingCall;
   StreamSubscription<Call?>? _callSubscription;
+  bool _isWebRTCReady = false;
+  OverlayEntry? _overlayEntry;
 
   @override
   void initState() {
@@ -285,15 +303,33 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     print('[CallOverlay] initState - инициализация overlay');
     print('[CallOverlay] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
     print('[CallOverlay] ========================================');
+    print('[CallOverlay] ⏳ Ожидаем инициализации WebRTC...');
+  }
 
-    // КРИТИЧЕСКИ ВАЖНО: Подписываемся на входящие звонки НЕМЕДЛЕННО
+  void onWebRTCReady() {
+    print('[CallOverlay] ========================================');
+    print('[CallOverlay] 🎉 WebRTC готов! Подписываемся на звонки');
+    print('[CallOverlay] ========================================');
+
+    if (!mounted) {
+      print('[CallOverlay] ⚠️ Widget не смонтирован, отменяем подписку');
+      return;
+    }
+
+    setState(() {
+      _isWebRTCReady = true;
+    });
+
     _subscribeToCallState();
   }
 
   void _subscribeToCallState() {
     print('[CallOverlay] 📡 Подписка на callState stream...');
+    print('[CallOverlay] 🔍 Stream: ${WebRTCService.instance.callState}');
 
     _callSubscription?.cancel();
+
+    print('[CallOverlay] 🔍 Создаем подписку...');
     _callSubscription = WebRTCService.instance.callState.listen(
       (call) {
         print('[CallOverlay] ========================================');
@@ -316,16 +352,12 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
         if (call != null && call.status == CallStatus.incoming) {
           print(
               '[CallOverlay] ✅ ПОКАЗЫВАЕМ входящий звонок от ${call.callerName}');
-          setState(() {
-            _incomingCall = call;
-          });
+          _showIncomingCallOverlay(call);
         } else if (call == null ||
             call.status == CallStatus.ended ||
             call.status == CallStatus.declined) {
           print('[CallOverlay] 🔴 Скрываем overlay (статус: ${call?.status})');
-          setState(() {
-            _incomingCall = null;
-          });
+          _hideIncomingCallOverlay();
         }
       },
       onError: (error) {
@@ -337,42 +369,73 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     print('[CallOverlay] ✅ Подписка на callState активирована');
   }
 
+  void _showIncomingCallOverlay(Call call) {
+    // Удаляем старый overlay если существует
+    _overlayEntry?.remove();
+
+    print('[CallOverlay] 🎨 Создаем OverlayEntry');
+
+    // Сохраняем context для навигации
+    final overlayContext = context;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Container(
+          color: Colors.black.withOpacity(0.8),
+          child: IncomingCallOverlay(
+            incomingCall: call,
+            onDismiss: () {
+              print('[CallOverlay] onDismiss вызван');
+              _hideIncomingCallOverlay();
+            },
+            onAccept: () {
+              print('[CallOverlay] ========================================');
+              print('[CallOverlay] ✅ onAccept - открываем CallScreen');
+              print('[CallOverlay] ========================================');
+
+              // Закрываем overlay
+              _hideIncomingCallOverlay();
+
+              // Открываем CallScreen используя сохраненный context
+              Navigator.of(overlayContext).push(
+                MaterialPageRoute(
+                  builder: (_) => CallScreen(
+                    initialCall: call,
+                  ),
+                ),
+              );
+
+              print('[CallOverlay] ✅ CallScreen открыт');
+            },
+          ),
+        ),
+      ),
+    );
+
+    // Вставляем overlay поверх всего
+    Overlay.of(context).insert(_overlayEntry!);
+    print('[CallOverlay] ✅ OverlayEntry вставлен');
+  }
+
+  void _hideIncomingCallOverlay() {
+    print('[CallOverlay] 🗑️ Удаляем OverlayEntry');
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
   @override
   void dispose() {
     print('[CallOverlay] ========================================');
     print('[CallOverlay] dispose - отменяем подписку');
     print('[CallOverlay] ========================================');
+    _hideIncomingCallOverlay();
     _callSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        widget.child,
-
-        // Overlay для входящего звонка
-        if (_incomingCall != null)
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.8),
-              child: IncomingCallOverlay(
-                incomingCall: _incomingCall!,
-                onDismiss: () {
-                  print(
-                      '[CallOverlay] ========================================');
-                  print('[CallOverlay] onDismiss вызван вручную');
-                  print(
-                      '[CallOverlay] ========================================');
-                  setState(() {
-                    _incomingCall = null;
-                  });
-                },
-              ),
-            ),
-          ),
-      ],
-    );
+    return widget.child;
   }
 }

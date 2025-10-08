@@ -4,16 +4,17 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/call.dart';
 import '../services/webrtc_service.dart';
-import '../screens/call_screen.dart';
 
 class IncomingCallOverlay extends StatefulWidget {
   final Call incomingCall;
   final VoidCallback onDismiss;
+  final VoidCallback onAccept;
 
   const IncomingCallOverlay({
     Key? key,
     required this.incomingCall,
     required this.onDismiss,
+    required this.onAccept,
   }) : super(key: key);
 
   @override
@@ -51,7 +52,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
     _animationController.forward();
 
-    // Автоматически отклоняем звонок через 45 секунд (увеличено для мобильных)
+    // Автоматически отклоняем звонок через 45 секунд
     _timeoutTimer = Timer(Duration(seconds: 45), () {
       if (mounted) {
         print('[IncomingCallOverlay] ⏰ Таймаут 45 секунд истек');
@@ -72,7 +73,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     super.dispose();
   }
 
-  void _acceptCall() {
+  void _acceptCall() async {
     print('[IncomingCallOverlay] ========================================');
     print('[IncomingCallOverlay] ✅ Принимаем звонок');
     print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
@@ -80,17 +81,13 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
 
     _timeoutTimer?.cancel();
 
-    // Закрываем оверлей
-    widget.onDismiss();
+    // Отвечаем на звонок через WebRTC сервис
+    await WebRTCService.instance.answerCall(widget.incomingCall.id);
 
-    // Переходим на экран звонка
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          initialCall: widget.incomingCall,
-        ),
-      ),
-    );
+    // Вызываем callback для открытия CallScreen
+    widget.onAccept();
+
+    print('[IncomingCallOverlay] ✅ answerCall вызван, callback выполнен');
   }
 
   void _declineCall() {
