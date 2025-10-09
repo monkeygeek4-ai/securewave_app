@@ -84,7 +84,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       final bytes = await image.readAsBytes();
       final base64Image = base64Encode(bytes);
 
-      final response = await _api.post('/users/upload-avatar', {
+      final response = await _api.post('/users/upload-avatar', data: {
         'avatar': 'data:image/jpeg;base64,$base64Image',
         'filename': image.name,
       });
@@ -129,7 +129,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           ? _phoneMask.getUnmaskedText()
           : null;
 
-      final response = await _api.post('/users/update-profile', {
+      final response = await _api.post('/users/update-profile', data: {
         'username': _usernameController.text.trim(),
         'fullName': _fullNameController.text.trim().isNotEmpty
             ? _fullNameController.text.trim()

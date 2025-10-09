@@ -57,7 +57,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
     });
 
     try {
-      final response = await _api.post('/auth/register-by-invite', {
+      final response = await _api.post('/auth/register-by-invite', data: {
         'inviteCode': widget.inviteCode,
         'username': _usernameController.text.trim(),
         'email': _emailController.text.trim(),

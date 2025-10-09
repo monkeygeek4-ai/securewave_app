@@ -7,7 +7,6 @@ import '../models/chat.dart';
 import '../models/message.dart';
 import '../services/api_service.dart';
 import '../services/websocket_manager.dart';
-import '../services/title_notification_service.dart';
 
 class ChatProvider with ChangeNotifier {
   final ApiService _api = ApiService.instance;
@@ -151,11 +150,6 @@ class ChatProvider with ChangeNotifier {
 
         final chat = _chats.removeAt(chatIndex);
         _chats.insert(0, chat);
-
-        // Обновляем счетчик в заголовке только если сообщение НЕ в текущем чате
-        if (!isCurrentChat && kIsWeb) {
-          _updateUnreadCountInTitle();
-        }
       }
 
       notifyListeners();
@@ -166,18 +160,6 @@ class ChatProvider with ChangeNotifier {
     } catch (e) {
       _log('Ошибка обработки нового сообщения: $e');
     }
-  }
-
-  /// Обновляет счетчик непрочитанных в заголовке браузера
-  void _updateUnreadCountInTitle() {
-    if (!kIsWeb) return;
-
-    int totalUnread = 0;
-    for (var chat in _chats) {
-      totalUnread += chat.unreadCount;
-    }
-
-    TitleNotificationService.instance.setUnreadCount(totalUnread);
   }
 
   bool isUserTyping(String chatId) {
@@ -243,12 +225,6 @@ class ChatProvider with ChangeNotifier {
   void _handleChatDeleted(Map<String, dynamic> data) {
     final chatId = data['chatId'];
     _chats.removeWhere((c) => c.id == chatId);
-
-    // Обновляем счетчик после удаления чата
-    if (kIsWeb) {
-      _updateUnreadCountInTitle();
-    }
-
     notifyListeners();
   }
 
@@ -285,15 +261,7 @@ class ChatProvider with ChangeNotifier {
     if (chatId != null) {
       final chatIndex = _chats.indexWhere((c) => c.id == chatId);
       if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
-        final unreadCount = _chats[chatIndex].unreadCount;
         _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
-
-        // Уменьшаем счетчик в заголовке на количество прочитанных
-        if (kIsWeb) {
-          for (int i = 0; i < unreadCount; i++) {
-            TitleNotificationService.instance.decrementUnread();
-          }
-        }
       }
 
       markMessagesAsRead(chatId);
@@ -309,12 +277,6 @@ class ChatProvider with ChangeNotifier {
 
     try {
       _chats = await _api.getChats();
-
-      // Обновляем счетчик после загрузки чатов
-      if (kIsWeb) {
-        _updateUnreadCountInTitle();
-      }
-
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -471,11 +433,6 @@ class ChatProvider with ChangeNotifier {
         if (_currentChatId == chatId) {
           _currentChatId = null;
           _messages.clear();
-        }
-
-        // Обновляем счетчик после удаления
-        if (kIsWeb) {
-          _updateUnreadCountInTitle();
         }
 
         notifyListeners();

@@ -199,7 +199,7 @@ class NotificationService {
   // Отправка токена на сервер
   Future<void> _sendTokenToServer(String token) async {
     try {
-      await ApiService.instance.post('/notifications/register', {
+      await ApiService.instance.post('/notifications/register', data: {
         'token': token,
         'platform': kIsWeb ? 'web' : Platform.operatingSystem,
       });
@@ -235,9 +235,10 @@ class NotificationService {
     } else if (type == 'incoming_call') {
       // Для звонков тоже показываем в заголовке
       if (kIsWeb) {
+        // ИСПРАВЛЕНО: добавлен именованный параметр duration
         TitleNotificationService.instance.showTemporaryNotification(
             'Входящий звонок от ${data['callerName']}',
-            duration: Duration(seconds: 30));
+            duration: const Duration(seconds: 30));
       }
 
       await _showIncomingCallNotification(

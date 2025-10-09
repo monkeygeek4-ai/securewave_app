@@ -381,6 +381,29 @@ class ApiService {
     }
   }
 
+  // ДОБАВЛЕНО: метод для создания личного чата
+  Future<Chat?> createPersonalChat(String userId) async {
+    try {
+      _log('Создание личного чата с пользователем: $userId');
+
+      final response = await _dio.post('/chats/create', data: {
+        'recipientId': userId,
+        'type': 'personal',
+      });
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _log('Личный чат создан успешно');
+        return Chat.fromJson(response.data);
+      }
+
+      _log('Ошибка создания личного чата: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      _log('Ошибка создания личного чата: $e');
+      return null;
+    }
+  }
+
   Future<Chat?> createGroupChat(
       String groupName, List<String> participantIds) async {
     try {
@@ -425,6 +448,22 @@ class ApiService {
     }
   }
 
+  // ДОБАВЛЕНО: метод для отметки чата как прочитанного
+  Future<void> markChatAsRead(String chatId) async {
+    try {
+      _log('Отметка чата как прочитанного: $chatId');
+
+      await _dio.post('/chats/mark-read', data: {
+        'chatId': chatId,
+      });
+
+      _log('Чат отмечен как прочитанный');
+    } catch (e) {
+      _log('Ошибка отметки чата как прочитанного: $e');
+      rethrow;
+    }
+  }
+
   // ===== СООБЩЕНИЯ =====
 
   Future<List<Message>> getMessages(String chatId) async {
@@ -443,10 +482,12 @@ class ApiService {
     }
   }
 
+  // ОБНОВЛЕНО: добавлен параметр replyToId
   Future<Message?> sendMessage(
     String chatId,
     String content, {
     String type = 'text',
+    String? replyToId, // ДОБАВЛЕНО
     Map<String, dynamic>? metadata,
   }) async {
     try {
@@ -454,12 +495,14 @@ class ApiService {
       _log('  chatId: $chatId');
       _log('  content: $content');
       _log('  type: $type');
+      _log('  replyToId: $replyToId');
       _log('  metadata: $metadata');
 
       final response = await _dio.post('/messages/send', data: {
         'chatId': chatId,
         'content': content,
         'type': type,
+        if (replyToId != null) 'replyToId': replyToId, // ДОБАВЛЕНО
         if (metadata != null) 'metadata': metadata,
       });
 
@@ -492,6 +535,29 @@ class ApiService {
       return response.statusCode == 200;
     } catch (e) {
       _log('Ошибка отметки сообщений как прочитанных: $e');
+      return false;
+    }
+  }
+
+  // ДОБАВЛЕНО: метод для удаления сообщения
+  Future<bool> deleteMessage(String chatId, String messageId) async {
+    try {
+      _log('Удаление сообщения: $messageId из чата: $chatId');
+
+      final response = await _dio.delete('/messages/delete', data: {
+        'chatId': chatId,
+        'messageId': messageId,
+      });
+
+      if (response.statusCode == 200) {
+        _log('Сообщение удалено успешно');
+        return true;
+      }
+
+      _log('Ошибка удаления сообщения: ${response.statusCode}');
+      return false;
+    } catch (e) {
+      _log('Ошибка удаления сообщения: $e');
       return false;
     }
   }
@@ -557,7 +623,7 @@ class ApiService {
     }
   }
 
-  Future<dynamic> post(String path, Map<String, dynamic> data) async {
+  Future<dynamic> post(String path, {Map<String, dynamic>? data}) async {
     try {
       _log('POST запрос: $path');
       final response = await _dio.post(path, data: data);

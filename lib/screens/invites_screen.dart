@@ -49,7 +49,8 @@ class _InvitesScreenState extends State<InvitesScreen> {
     setState(() => _isCreating = true);
 
     try {
-      final response = await _api.post('/invites/create', <String, dynamic>{});
+      final response =
+          await _api.post('/invites/create', data: <String, dynamic>{});
 
       if (response['success'] == true) {
         final inviteCode = response['code'];
@@ -101,7 +102,7 @@ class _InvitesScreenState extends State<InvitesScreen> {
   Future<void> _deleteInvite(String inviteCode) async {
     try {
       final response =
-          await _api.post('/invites/$inviteCode', {'_method': 'DELETE'});
+          await _api.post('/invites/$inviteCode', data: {'_method': 'DELETE'});
 
       if (response['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(

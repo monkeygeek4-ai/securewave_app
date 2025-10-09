@@ -1,176 +1,85 @@
 // lib/services/title_notification_service.dart
 
-import 'dart:async';
-import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
+
+// Условный импорт - выбирает нужную реализацию в зависимости от платформы
+import 'title_notification_service_stub.dart'
+    if (dart.library.html) 'title_notification_service_web.dart';
 
 class TitleNotificationService {
   static final TitleNotificationService instance = TitleNotificationService._();
-  TitleNotificationService._();
+  TitleNotificationService._() {
+    _impl = TitleNotificationServiceImpl();
+  }
 
-  Timer? _blinkTimer;
-  int _unreadCount = 0;
-  String _originalTitle = 'SecureWave';
-  bool _isBlinking = false;
-  bool _showingNotification = false;
+  late final TitleNotificationServiceImpl _impl;
 
   /// Инициализация сервиса
   void initialize() {
-    if (kIsWeb) {
-      _originalTitle = html.document.title ?? 'SecureWave';
-      print(
-          '[TitleNotification] Инициализирован. Оригинальный заголовок: $_originalTitle');
-    }
+    _impl.initialize();
   }
 
   /// Увеличить счетчик непрочитанных и начать мигание
   void incrementUnread({String? message}) {
-    if (!kIsWeb) return;
-
-    _unreadCount++;
-    _updateTitle();
-    _startBlinking(message);
-
-    print('[TitleNotification] Непрочитанных: $_unreadCount');
+    _impl.incrementUnread(message: message);
   }
 
   /// Уменьшить счетчик непрочитанных
   void decrementUnread() {
-    if (!kIsWeb || _unreadCount <= 0) return;
-
-    _unreadCount--;
-    _updateTitle();
-
-    if (_unreadCount == 0) {
-      _stopBlinking();
-    }
-
-    print('[TitleNotification] Непрочитанных: $_unreadCount');
+    _impl.decrementUnread();
   }
 
   /// Установить точное количество непрочитанных
   void setUnreadCount(int count) {
-    if (!kIsWeb) return;
+    _impl.setUnreadCount(count);
+  }
 
-    _unreadCount = count;
-    _updateTitle();
-
-    if (_unreadCount > 0) {
-      _startBlinking();
-    } else {
-      _stopBlinking();
-    }
-
-    print('[TitleNotification] Установлено непрочитанных: $_unreadCount');
+  /// Обновить счетчик непрочитанных (алиас для совместимости)
+  void updateUnreadCount(int count) {
+    setUnreadCount(count);
   }
 
   /// Сбросить счетчик (когда пользователь просмотрел все сообщения)
   void clearUnread() {
-    if (!kIsWeb) return;
-
-    _unreadCount = 0;
-    _stopBlinking();
-    _updateTitle();
-
-    print('[TitleNotification] Все сообщения прочитаны');
+    _impl.clearUnread();
   }
 
-  /// Обновить заголовок страницы
-  void _updateTitle() {
-    if (!kIsWeb) return;
-
-    if (_unreadCount > 0) {
-      html.document.title = '($_unreadCount) $_originalTitle';
-    } else {
-      html.document.title = _originalTitle;
-    }
-  }
-
-  /// Начать мигание заголовка
-  void _startBlinking([String? message]) {
-    if (!kIsWeb || _isBlinking) return;
-
-    _isBlinking = true;
-    final notificationText = message ?? 'Новое сообщение!';
-
-    _blinkTimer?.cancel();
-    _blinkTimer = Timer.periodic(Duration(seconds: 2), (timer) {
-      if (!kIsWeb) {
-        timer.cancel();
-        return;
-      }
-
-      _showingNotification = !_showingNotification;
-
-      if (_showingNotification) {
-        // Показываем уведомление
-        html.document.title = '🔔 $notificationText';
-      } else {
-        // Показываем счетчик
-        if (_unreadCount > 0) {
-          html.document.title = '($_unreadCount) $_originalTitle';
-        } else {
-          html.document.title = _originalTitle;
-        }
-      }
-    });
-
-    print('[TitleNotification] Мигание начато');
-  }
-
-  /// Остановить мигание заголовка
-  void _stopBlinking() {
-    if (!kIsWeb) return;
-
-    _isBlinking = false;
-    _showingNotification = false;
-    _blinkTimer?.cancel();
-    _blinkTimer = null;
-
-    // Восстанавливаем нормальный заголовок
-    if (_unreadCount > 0) {
-      html.document.title = '($_unreadCount) $_originalTitle';
-    } else {
-      html.document.title = _originalTitle;
-    }
-
-    print('[TitleNotification] Мигание остановлено');
+  /// Показать уведомление в заголовке
+  void showNotification(String text) {
+    _impl.showTemporaryNotification(text);
   }
 
   /// Временно показать уведомление (например, при новом сообщении)
-  void showTemporaryNotification(String text,
-      {Duration duration = const Duration(seconds: 5)}) {
-    if (!kIsWeb) return;
+  void showTemporaryNotification(String text, {Duration? duration}) {
+    _impl.showTemporaryNotification(
+      text,
+      duration: duration ?? const Duration(seconds: 5),
+    );
+  }
 
-    final wasBlinking = _isBlinking;
+  /// Обновить заголовок страницы
+  void updateTitle(String title) {
+    _impl.updateTitle(title);
+  }
 
-    // Останавливаем текущее мигание
-    _stopBlinking();
+  /// Очистить все уведомления
+  void clearNotifications() {
+    _impl.clearUnread();
+  }
 
-    // Показываем временное уведомление
-    html.document.title = '🔔 $text';
-
-    // Через указанное время возвращаем обычное состояние
-    Timer(duration, () {
-      if (wasBlinking && _unreadCount > 0) {
-        _startBlinking();
-      } else {
-        _updateTitle();
-      }
-    });
+  /// Сбросить заголовок к исходному
+  void resetTitle() {
+    _impl.resetTitle();
   }
 
   /// Очистка ресурсов
   void dispose() {
-    _blinkTimer?.cancel();
-    if (kIsWeb) {
-      html.document.title = _originalTitle;
-    }
+    _impl.dispose();
   }
 
   /// Получить текущий счетчик
-  int get unreadCount => _unreadCount;
+  int get unreadCount => _impl.unreadCount;
 
   /// Проверка активности мигания
-  bool get isBlinking => _isBlinking;
+  bool get isBlinking => _impl.isBlinking;
 }
