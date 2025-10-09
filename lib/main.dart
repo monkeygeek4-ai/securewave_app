@@ -3,7 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
+import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/chat_provider.dart';
@@ -13,6 +15,7 @@ import 'screens/auth/invite_register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/call_screen.dart';
 import 'services/webrtc_service.dart';
+import './services/notification_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
@@ -39,11 +42,55 @@ String? _checkInviteLink() {
   return null;
 }
 
-void main() {
+void main() async {
   print('[Main] ========================================');
   print('[Main] Запуск приложения SecureWave');
   print('[Main] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
   print('[Main] ========================================');
+
+  // Инициализация Flutter bindings
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    // Инициализация Firebase
+    print('[Main] 🔥 Инициализация Firebase...');
+
+    if (kIsWeb) {
+      // Для Web используем конфигурацию напрямую
+      print('[Main] 🌐 Инициализация Firebase для Web...');
+      await Firebase.initializeApp(
+        options: FirebaseOptions(
+          apiKey: 'AIzaSyAW5HurHMo1l9ub2XKyr2nk-yP22bc_6F4',
+          authDomain: 'wave-messenger-56985.firebaseapp.com',
+          projectId: 'wave-messenger-56985',
+          storageBucket: 'wave-messenger-56985.firebasestorage.app',
+          messagingSenderId: '394959992893',
+          appId: '1:394959992893:web:c7d493658ad06278661254',
+        ),
+      );
+      print('[Main] ✅ Firebase инициализирован для Web');
+    } else {
+      // Для мобильных платформ используем firebase_options.dart
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('[Main] ✅ Firebase инициализирован для Mobile');
+    }
+
+    // Инициализация сервиса уведомлений
+    print('[Main] 🔔 Инициализация сервиса уведомлений...');
+    try {
+      await NotificationService.instance.initialize();
+      print('[Main] ✅ Сервис уведомлений инициализирован');
+    } catch (e) {
+      print('[Main] ⚠️ Ошибка инициализации уведомлений: $e');
+      // Продолжаем работу даже если уведомления не работают
+    }
+  } catch (e, stackTrace) {
+    print('[Main] ❌ Ошибка инициализации Firebase: $e');
+    print('[Main] Stack trace: $stackTrace');
+    // Продолжаем работу даже при ошибке Firebase
+  }
 
   runApp(
     MultiProvider(
@@ -67,6 +114,8 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Consumer2<ThemeProvider, AuthProvider>(
@@ -99,6 +148,8 @@ class MyApp extends StatelessWidget {
 
 // Виджет инициализации приложения
 class InitializationWrapper extends StatefulWidget {
+  const InitializationWrapper({Key? key}) : super(key: key);
+
   @override
   _InitializationWrapperState createState() => _InitializationWrapperState();
 }
@@ -145,16 +196,27 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
         print('[Init] ========================================');
 
+        // Регистрируем FCM токен
+        print('[Init] 📱 Попытка получения FCM токена...');
+        try {
+          final fcmToken = NotificationService.instance.fcmToken;
+          if (fcmToken != null && fcmToken.isNotEmpty) {
+            print(
+                '[Init] ✅ FCM токен получен: ${fcmToken.substring(0, 20)}...');
+          } else {
+            print('[Init] ⚠️ FCM токен пуст или не получен');
+          }
+        } catch (e) {
+          print('[Init] ⚠️ Ошибка получения FCM токена: $e');
+          // Продолжаем работу без FCM
+        }
+
         print('[Init] 🔌 Инициализация WebRTC...');
         try {
           await WebRTCService.instance.initialize(
             authProvider.currentUser!.id.toString(),
           );
           print('[Init] ✅ WebRTC успешно инициализирован');
-
-          print('[Init] 🔍 DEBUG: Проверка WebRTC после init');
-          print(
-              '[Init] 🔍 callState stream: ${WebRTCService.instance.callState}');
 
           if (mounted) {
             print('[Init] 📢 Вызываем _notifyWebRTCReady()');
