@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="SecureWave Secure Messenger">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="SecureWave">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+  <title>SecureWave</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      z-index: 9999;
+    }
+    
+    #loading-icon {
+      font-size: 80px;
+      margin-bottom: 20px;
+    }
+    
+    #loading-title {
+      font-size: 32px;
+      font-weight: bold;
+      color: white;
+      margin-bottom: 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    #loading-text {
+      margin-top: 20px;
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.7);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading">
+    <div id="loading-icon">🔐</div>
+    <div id="loading-title">SecureWave</div>
+    <div class="spinner"></div>
+    <div id="loading-text">Загрузка...</div>
+  </div>
+
+  <!-- ВАЖНО: Firebase SDK должен загружаться ПЕРВЫМ -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js"></script>
+
+  <!-- Firebase Configuration -->
+  <script>
+    console.log('[HTML] Инициализация Firebase...');
+    
+    // Конфигурация Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyAW5HurHMo1l9ub2XKyr2nk-yP22bc_6F4",
+      authDomain: "wave-messenger-56985.firebaseapp.com",
+      projectId: "wave-messenger-56985",
+      storageBucket: "wave-messenger-56985.firebasestorage.app",
+      messagingSenderId: "394959992893",
+      appId: "1:394959992893:web:c7d493658ad06278661254"
+    };
+
+    // Инициализация Firebase
+    try {
+      if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase инициализирован');
+        console.log('✅ Firebase config:', firebaseConfig);
+        
+        // Проверяем что messaging доступен
+        if (firebase.messaging.isSupported()) {
+          console.log('✅ Firebase Messaging поддерживается');
+        } else {
+          console.warn('⚠️ Firebase Messaging не поддерживается в этом браузере');
+        }
+      } else {
+        console.error('❌ Firebase SDK не загружен');
+      }
+    } catch (error) {
+      console.error('❌ Ошибка инициализации Firebase:', error);
+    }
+  </script>
+
+  <!-- Flutter loader -->
+  <script src="flutter.js" defer></script>
+  <script>
+    window.addEventListener('load', function(ev) {
+      console.log('[HTML] Page loaded, starting Flutter...');
+      
+      var serviceWorkerVersion = null;
+      
+      if (typeof _flutter !== 'undefined') {
+        _flutter.loader.loadEntrypoint({
+          serviceWorker: {
+            serviceWorkerVersion: serviceWorkerVersion,
+          },
+          onEntrypointLoaded: function(engineInitializer) {
+            console.log('[HTML] Flutter entrypoint loaded');
+            engineInitializer.initializeEngine().then(function(appRunner) {
+              console.log('[HTML] Flutter engine initialized, running app...');
+              appRunner.runApp();
+              
+              // Скрываем экран загрузки
+              setTimeout(function() {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                  loading.style.opacity = '0';
+                  loading.style.transition = 'opacity 0.3s';
+                  setTimeout(function() {
+                    loading.remove();
+                  }, 300);
+                }
+              }, 1000);
+            });
+          }
+        });
+      }
+    });
+  </script>
+
+  <!-- ========================================= -->
+  <!-- РЕГИСТРАЦИЯ FIREBASE SERVICE WORKER       -->
+  <!-- ========================================= -->
+  <script>
+    console.log('[HTML] Регистрация Service Worker...');
+    
+    if ('serviceWorker' in navigator) {
+      // Ждем полной загрузки страницы
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+          .then((registration) => {
+            console.log('✅ Service Worker зарегистрирован:', registration.scope);
+            console.log('✅ Registration:', registration);
+            
+            // Проверяем статус Service Worker
+            if (registration.active) {
+              console.log('✅ Service Worker активен');
+            } else if (registration.installing) {
+              console.log('⏳ Service Worker устанавливается...');
+            } else if (registration.waiting) {
+              console.log('⏳ Service Worker ожидает активации...');
+            }
+          })
+          .catch((error) => {
+            console.error('❌ Ошибка регистрации Service Worker:', error);
+          });
+        
+        // Слушаем обновления Service Worker
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('🔄 Service Worker контроллер изменился');
+        });
+      });
+    } else {
+      console.warn('⚠️ Service Worker не поддерживается в этом браузере');
+    }
+  </script>
+
+</body>
+</html>
