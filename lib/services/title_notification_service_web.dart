@@ -5,7 +5,6 @@ import 'dart:html' as html;
 import 'package:flutter/foundation.dart';
 
 /// Веб-реализация сервиса уведомлений в заголовке браузера
-/// Это ваш оригинальный код, перенесенный в отдельный файл
 class TitleNotificationServiceImpl {
   Timer? _blinkTimer;
   int _unreadCount = 0;
@@ -16,8 +15,10 @@ class TitleNotificationServiceImpl {
   /// Инициализация сервиса
   void initialize() {
     _originalTitle = html.document.title ?? 'SecureWave';
-    print(
-        '[TitleNotification] Инициализирован. Оригинальный заголовок: $_originalTitle');
+    print('[TitleNotification] ========================================');
+    print('[TitleNotification] Инициализирован');
+    print('[TitleNotification] Оригинальный заголовок: $_originalTitle');
+    print('[TitleNotification] ========================================');
   }
 
   /// Увеличить счетчик непрочитанных и начать мигание
@@ -26,7 +27,11 @@ class TitleNotificationServiceImpl {
     _updateTitle();
     _startBlinking(message);
 
+    print('[TitleNotification] ========================================');
+    print('[TitleNotification] ✅ incrementUnread вызван');
     print('[TitleNotification] Непрочитанных: $_unreadCount');
+    print('[TitleNotification] Сообщение: $message');
+    print('[TitleNotification] ========================================');
   }
 
   /// Уменьшить счетчик непрочитанных
@@ -59,6 +64,18 @@ class TitleNotificationServiceImpl {
 
   /// Сбросить счетчик (когда пользователь просмотрел все сообщения)
   void clearUnread() {
+    print('[TitleNotification] ========================================');
+    print('[TitleNotification] 🔴 clearUnread вызван');
+    print('[TitleNotification] Текущий счетчик: $_unreadCount');
+
+    // Показываем stack trace только если счетчик > 0
+    if (_unreadCount > 0) {
+      print('[TitleNotification] Stack trace:');
+      print(StackTrace.current);
+    }
+
+    print('[TitleNotification] ========================================');
+
     _unreadCount = 0;
     _stopBlinking();
     _updateTitle();
@@ -91,10 +108,18 @@ class TitleNotificationServiceImpl {
 
   /// Начать мигание заголовка
   void _startBlinking([String? message]) {
-    if (_isBlinking) return;
+    if (_isBlinking) {
+      print('[TitleNotification] ⚠️ Мигание уже активно, пропускаем');
+      return;
+    }
 
     _isBlinking = true;
     final notificationText = message ?? 'Новое сообщение!';
+
+    print('[TitleNotification] ========================================');
+    print('[TitleNotification] ✨ Начинаем мигание');
+    print('[TitleNotification] Текст: $notificationText');
+    print('[TitleNotification] ========================================');
 
     _blinkTimer?.cancel();
     _blinkTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
@@ -103,12 +128,16 @@ class TitleNotificationServiceImpl {
       if (_showingNotification) {
         // Показываем уведомление
         html.document.title = '🔔 $notificationText';
+        print('[TitleNotification] 💫 Показываем: 🔔 $notificationText');
       } else {
         // Показываем счетчик
         if (_unreadCount > 0) {
           html.document.title = '($_unreadCount) $_originalTitle';
+          print(
+              '[TitleNotification] 💫 Показываем: ($_unreadCount) $_originalTitle');
         } else {
           html.document.title = _originalTitle;
+          print('[TitleNotification] 💫 Показываем: $_originalTitle');
         }
       }
     });
@@ -118,6 +147,8 @@ class TitleNotificationServiceImpl {
 
   /// Остановить мигание заголовка
   void _stopBlinking() {
+    if (!_isBlinking) return;
+
     _isBlinking = false;
     _showingNotification = false;
     _blinkTimer?.cancel();
@@ -130,7 +161,7 @@ class TitleNotificationServiceImpl {
       html.document.title = _originalTitle;
     }
 
-    print('[TitleNotification] Мигание остановлено');
+    print('[TitleNotification] ⏹️ Мигание остановлено');
   }
 
   /// Временно показать уведомление (например, при новом сообщении)

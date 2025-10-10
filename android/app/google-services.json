@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "394959992893",
+    "project_id": "wave-messenger-56985",
+    "storage_bucket": "wave-messenger-56985.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:394959992893:android:63b18c66d1654eda661254",
+        "android_client_info": {
+          "package_name": "com.securewave.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCn418sni1BuB_spzJmwZStW8va4WiI1NM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

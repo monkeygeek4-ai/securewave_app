@@ -31,7 +31,7 @@ dependencies:
   provider: ^6.1.2
   
   # Работа с медиа - ОБНОВЛЕНО
-  image_picker: ^1.0.7
+  image_picker: ^1.2.0
   file_picker: ^8.1.4  # ОБНОВЛЕНО: последняя версия
   cached_network_image: ^3.3.1
   video_player: ^2.8.2
@@ -52,7 +52,7 @@ dependencies:
   firebase_messaging: ^16.0.2
   flutter_local_notifications: ^19.4.2
 
-  image_picker: ^1.2.0
+
   # Уведомления - УДАЛЕНО для упрощения
   # flutter_local_notifications: ^16.3.0
 

@@ -14,6 +14,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'chat_view.dart';
 import 'profile/profile_settings_screen.dart';
 import 'invites_screen.dart';
+import '../widgets/notification_debug_widget.dart'; // ДОБАВЛЕНО
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -593,6 +594,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           activeColor: Color(0xFF7C3AED),
                         ),
                       ),
+                      // ДОБАВЛЕНО: Тест уведомлений
+                      ListTile(
+                        leading: FaIcon(FontAwesomeIcons.bell,
+                            color: Color(0xFF7C3AED)),
+                        title: Text(
+                          'Тест уведомлений',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Проверка Push-уведомлений',
+                          style: TextStyle(
+                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                          ),
+                        ),
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => Dialog(
+                              child: Container(
+                                constraints: BoxConstraints(maxWidth: 500),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      NotificationDebugWidget(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                       ListTile(
                         leading: FaIcon(FontAwesomeIcons.circleInfo,
                             color: Color(0xFF7C3AED)),
@@ -1044,7 +1080,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (isTablet) {
             _selectChat(chat.id);
           } else {
-            // ИСПРАВЛЕНО: Обновляем чаты при возврате из ChatScreen
             Navigator.push(
               context,
               MaterialPageRoute(

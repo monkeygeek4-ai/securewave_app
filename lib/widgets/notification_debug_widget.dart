@@ -1,0 +1,220 @@
+import 'package:flutter/material.dart';
+import '../services/notification_service.dart';
+import '../services/api_service.dart';
+
+class NotificationDebugWidget extends StatefulWidget {
+  @override
+  _NotificationDebugWidgetState createState() =>
+      _NotificationDebugWidgetState();
+}
+
+class _NotificationDebugWidgetState extends State<NotificationDebugWidget> {
+  String _status = 'Проверка...';
+  String? _token;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkStatus();
+  }
+
+  void _checkStatus() {
+    setState(() {
+      _token = NotificationService.instance.fcmToken;
+      _status = _token != null && _token!.isNotEmpty
+          ? '✅ Инициализировано'
+          : '❌ Токен не получен';
+    });
+  }
+
+  Future<void> _reinitialize() async {
+    setState(() {
+      _isLoading = true;
+      _status = 'Переинициализация...';
+    });
+
+    try {
+      await NotificationService.instance.initialize();
+      _checkStatus();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Уведомления переинициализированы'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _status = 'Ошибка: $e';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _sendTest() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('[Debug] Отправка тестового уведомления...');
+
+      final response = await ApiService.instance.post('/notifications/test');
+
+      print('[Debug] Ответ: $response');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Тестовое уведомление отправлено!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      print('[Debug] Ошибка: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.all(16),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.notifications, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  'Отладка уведомлений',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            Divider(height: 24),
+            _buildRow('Статус:', _status),
+            if (_token != null && _token!.isNotEmpty) ...[
+              SizedBox(height: 12),
+              Text('FCM Token:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 4),
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: SelectableText(
+                  _token!.length > 60
+                      ? '${_token!.substring(0, 60)}...'
+                      : _token!,
+                  style: TextStyle(fontSize: 10, fontFamily: 'Courier'),
+                ),
+              ),
+            ],
+            SizedBox(height: 16),
+            if (_isLoading)
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _reinitialize,
+                      icon: Icon(Icons.refresh),
+                      label: Text('Переинициализировать'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _token != null && _token!.isNotEmpty
+                          ? _sendTest
+                          : null,
+                      icon: Icon(Icons.send),
+                      label: Text('Тест'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            SizedBox(height: 12),
+            Text(
+              'Примечание: Если токен не получен, проверьте консоль браузера (F12)',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: value.contains('✅')
+                    ? Colors.green
+                    : value.contains('❌')
+                        ? Colors.red
+                        : null,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
