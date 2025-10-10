@@ -29,6 +29,28 @@ const messaging = firebase.messaging();
 console.log('[firebase-messaging-sw.js] ✅ Firebase инициализирован');
 
 // ========================================
+// ФУНКЦИЯ ОБНОВЛЕНИЯ TITLE
+// ========================================
+function updatePageTitle(increment = 1) {
+  console.log('[firebase-messaging-sw.js] 📋 Обновляем title страницы, increment:', increment);
+  
+  // Отправляем сообщение всем открытым вкладкам/окнам приложения
+  self.clients.matchAll({ 
+    type: 'window', 
+    includeUncontrolled: true 
+  }).then(clients => {
+    console.log('[firebase-messaging-sw.js] 📤 Отправляем UPDATE_TITLE в', clients.length, 'клиентов');
+    
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'UPDATE_TITLE',
+        increment: increment
+      });
+    });
+  });
+}
+
+// ========================================
 // ОБРАБОТКА ФОНОВЫХ УВЕДОМЛЕНИЙ
 // Срабатывает когда приложение не в фокусе
 // ========================================
@@ -78,6 +100,9 @@ messaging.onBackgroundMessage((payload) => {
   } else if (type === 'new_message') {
     // НОВОЕ СООБЩЕНИЕ
     console.log('[firebase-messaging-sw.js] 💬 Новое сообщение от:', data.senderName);
+    
+    // ⭐ ОБНОВЛЯЕМ TITLE СТРАНИЦЫ
+    updatePageTitle(1);
     
     notificationOptions.actions = [
       {

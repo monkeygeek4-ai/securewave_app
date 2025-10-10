@@ -191,5 +191,100 @@
     }
   </script>
 
+  <!-- ========================================= -->
+  <!-- ОБРАБОТЧИК TITLE ДЛЯ НЕПРОЧИТАННЫХ        -->
+  <!-- ========================================= -->
+  <script>
+    (function() {
+      let unreadCount = 0;
+      const originalTitle = 'SecureWave';
+
+      console.log('[Title Handler] 📋 Инициализация обработчика title...');
+
+      // Функция обновления title
+      function updateTitle() {
+        if (unreadCount > 0) {
+          document.title = `(${unreadCount}) ${originalTitle}`;
+          console.log('[Title Handler] ✅ Title обновлен:', document.title);
+        } else {
+          document.title = originalTitle;
+          console.log('[Title Handler] ✅ Title сброшен:', document.title);
+        }
+      }
+
+      // Слушаем сообщения от Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          console.log('[Title Handler] 📨 Получено сообщение от SW:', event.data);
+          
+          if (event.data && event.data.type === 'UPDATE_TITLE') {
+            const increment = event.data.increment || 1;
+            unreadCount += increment;
+            console.log('[Title Handler] 📈 Увеличение счетчика на', increment, '-> новый счет:', unreadCount);
+            updateTitle();
+          }
+        });
+        
+        console.log('[Title Handler] ✅ Listener для SW зарегистрирован');
+      } else {
+        console.warn('[Title Handler] ⚠️ Service Worker не поддерживается');
+      }
+
+      // Сброс счетчика при фокусе на окне
+      window.addEventListener('focus', () => {
+        console.log('[Title Handler] 🔍 Окно получило фокус, сброс счетчика');
+        unreadCount = 0;
+        updateTitle();
+      });
+
+      // Сброс при изменении видимости страницы
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          console.log('[Title Handler] 👁️ Страница стала видимой, сброс счетчика');
+          unreadCount = 0;
+          updateTitle();
+        } else {
+          console.log('[Title Handler] 🙈 Страница скрыта');
+        }
+      });
+
+      // API для использования из Flutter/JavaScript
+      window.updateUnreadCount = function(count) {
+        console.log('[Title Handler] 🔢 Установка счетчика:', count);
+        unreadCount = Math.max(0, count);
+        updateTitle();
+      };
+
+      window.incrementUnreadCount = function(increment = 1) {
+        console.log('[Title Handler] ➕ Увеличение счетчика на:', increment);
+        unreadCount += increment;
+        updateTitle();
+      };
+
+      window.decrementUnreadCount = function(decrement = 1) {
+        console.log('[Title Handler] ➖ Уменьшение счетчика на:', decrement);
+        unreadCount = Math.max(0, unreadCount - decrement);
+        updateTitle();
+      };
+
+      window.resetUnreadCount = function() {
+        console.log('[Title Handler] 🔄 Полный сброс счетчика');
+        unreadCount = 0;
+        updateTitle();
+      };
+
+      // Экспортируем для доступа из других скриптов
+      window.titleHandler = {
+        getCount: () => unreadCount,
+        setCount: (count) => window.updateUnreadCount(count),
+        increment: () => window.incrementUnreadCount(),
+        decrement: () => window.decrementUnreadCount(),
+        reset: () => window.resetUnreadCount()
+      };
+
+      console.log('[Title Handler] 🎉 Обработчик title инициализирован успешно');
+    })();
+  </script>
+
 </body>
 </html>
