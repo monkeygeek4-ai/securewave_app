@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/chat.dart';
 import '../models/message.dart';
+import 'dart:io' show Platform;
 
 class ApiService {
   static final ApiService instance = ApiService._internal();
@@ -381,7 +382,6 @@ class ApiService {
     }
   }
 
-  // ДОБАВЛЕНО: метод для создания личного чата
   Future<Chat?> createPersonalChat(String userId) async {
     try {
       _log('Создание личного чата с пользователем: $userId');
@@ -448,7 +448,6 @@ class ApiService {
     }
   }
 
-  // ДОБАВЛЕНО: метод для отметки чата как прочитанного
   Future<void> markChatAsRead(String chatId) async {
     try {
       _log('Отметка чата как прочитанного: $chatId');
@@ -482,12 +481,11 @@ class ApiService {
     }
   }
 
-  // ОБНОВЛЕНО: добавлен параметр replyToId
   Future<Message?> sendMessage(
     String chatId,
     String content, {
     String type = 'text',
-    String? replyToId, // ДОБАВЛЕНО
+    String? replyToId,
     Map<String, dynamic>? metadata,
   }) async {
     try {
@@ -502,7 +500,7 @@ class ApiService {
         'chatId': chatId,
         'content': content,
         'type': type,
-        if (replyToId != null) 'replyToId': replyToId, // ДОБАВЛЕНО
+        if (replyToId != null) 'replyToId': replyToId,
         if (metadata != null) 'metadata': metadata,
       });
 
@@ -539,7 +537,6 @@ class ApiService {
     }
   }
 
-  // ДОБАВЛЕНО: метод для удаления сообщения
   Future<bool> deleteMessage(String chatId, String messageId) async {
     try {
       _log('Удаление сообщения: $messageId из чата: $chatId');
@@ -595,6 +592,42 @@ class ApiService {
     } catch (e) {
       _log('Ошибка получения пользователей: $e');
       return [];
+    }
+  }
+
+  // ===== FCM УВЕДОМЛЕНИЯ =====
+
+  /// Регистрация FCM токена
+  Future<Map<String, dynamic>?> registerFCMToken(
+    String token,
+    String platform,
+  ) async {
+    try {
+      _log('📤 Регистрация FCM токена на платформе: $platform');
+      _log('   Токен: ${token.substring(0, 20)}...');
+
+      final response = await _dio.post('/notifications/register.php', data: {
+        'token': token,
+        'platform': platform,
+      });
+
+      _log('📥 Ответ регистрации FCM: ${response.statusCode}');
+      _log('   Данные: ${response.data}');
+
+      if (response.statusCode == 200) {
+        _log('✅ FCM токен успешно зарегистрирован на бэкенде');
+        return response.data;
+      }
+
+      _log('⚠️ Неожиданный статус код: ${response.statusCode}');
+      return null;
+    } on DioException catch (e) {
+      _log('❌ DioException при регистрации FCM токена: ${e.message}');
+      _log('   Response: ${e.response?.data}');
+      return null;
+    } catch (e) {
+      _log('❌ Ошибка регистрации FCM токена: $e');
+      return null;
     }
   }
 

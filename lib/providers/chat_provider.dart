@@ -9,8 +9,11 @@ import '../services/api_service.dart';
 import '../services/websocket_manager.dart';
 import '../services/title_notification_service.dart';
 
-// Условный импорт для Web
-import 'dart:html' as html show window, document;
+// ⭐ ИСПРАВЛЕНО: Условный импорт для Web и Mobile
+// Этот файл будет выбран автоматически в зависимости от платформы
+import 'web_visibility_stub.dart'
+    if (dart.library.html) 'web_visibility_web.dart'
+    if (dart.library.io) 'web_visibility_mobile.dart';
 
 class ChatProvider with ChangeNotifier {
   final ApiService _api = ApiService.instance;
@@ -81,51 +84,25 @@ class ChatProvider with ChangeNotifier {
     print('[ChatProvider] ========================================');
   }
 
+  // ⭐ ИСПРАВЛЕНО: Используем условную функцию вместо прямого импорта html
   void _subscribeToAppLifecycle() {
     if (kIsWeb) {
       try {
-        // Слушаем focus
-        html.window.onFocus.listen((_) {
-          _isWindowFocused = true;
-          _log('🔍 Окно в фокусе');
+        _log('🌐 Настройка Web lifecycle listeners');
 
-          // Сбрасываем уведомления ТОЛЬКО если есть что сбрасывать
-          if (TitleNotificationService.instance.unreadCount > 0) {
-            TitleNotificationService.instance.clearUnread();
-            _log('✅ Title notifications сброшены');
-          }
+        // Используем функцию из условного импорта
+        setupWebVisibilityListener(
+          onFocus: () {
+            _isWindowFocused = true;
+            _log('🔍 Окно в фокусе');
 
-          // Помечаем текущий чат как прочитанный
-          if (_currentChatId != null) {
-            final chatIndex = _chats.indexWhere((c) => c.id == _currentChatId);
-            if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
-              _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
-              notifyListeners();
-            }
-            markMessagesAsRead(_currentChatId!);
-          }
-        });
-
-        // Слушаем blur
-        html.window.onBlur.listen((_) {
-          _isWindowFocused = false;
-          _log('🔍 Окно потеряло фокус');
-        });
-
-        // Слушаем visibilitychange
-        html.document.onVisibilityChange.listen((_) {
-          final isVisible = !html.document.hidden!;
-          _isWindowFocused = isVisible;
-
-          _log('📱 Видимость страницы: ${isVisible ? "видима" : "скрыта"}');
-
-          if (isVisible) {
             // Сбрасываем уведомления ТОЛЬКО если есть что сбрасывать
             if (TitleNotificationService.instance.unreadCount > 0) {
               TitleNotificationService.instance.clearUnread();
-              _log('✅ Title notifications сброшены при возврате на вкладку');
+              _log('✅ Title notifications сброшены');
             }
 
+            // Помечаем текущий чат как прочитанный
             if (_currentChatId != null) {
               final chatIndex =
                   _chats.indexWhere((c) => c.id == _currentChatId);
@@ -135,13 +112,42 @@ class ChatProvider with ChangeNotifier {
               }
               markMessagesAsRead(_currentChatId!);
             }
-          }
-        });
+          },
+          onBlur: () {
+            _isWindowFocused = false;
+            _log('🔍 Окно потеряло фокус');
+          },
+          onVisibilityChange: (isVisible) {
+            _isWindowFocused = isVisible;
+            _log('📱 Видимость страницы: ${isVisible ? "видима" : "скрыта"}');
+
+            if (isVisible) {
+              // Сбрасываем уведомления ТОЛЬКО если есть что сбрасывать
+              if (TitleNotificationService.instance.unreadCount > 0) {
+                TitleNotificationService.instance.clearUnread();
+                _log('✅ Title notifications сброшены при возврате на вкладку');
+              }
+
+              if (_currentChatId != null) {
+                final chatIndex =
+                    _chats.indexWhere((c) => c.id == _currentChatId);
+                if (chatIndex != -1 && _chats[chatIndex].unreadCount > 0) {
+                  _chats[chatIndex] =
+                      _chats[chatIndex].copyWith(unreadCount: 0);
+                  notifyListeners();
+                }
+                markMessagesAsRead(_currentChatId!);
+              }
+            }
+          },
+        );
 
         _log('✅ Window focus listeners инициализированы');
       } catch (e) {
         _log('⚠️ Ошибка инициализации focus listeners: $e');
       }
+    } else {
+      _log('📱 Mobile платформа - Web visibility listeners не нужны');
     }
   }
 
@@ -493,7 +499,6 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  // ⭐⭐⭐ ИСПРАВЛЕНО: Отправка через WebSocket вместо REST API
   Future<void> sendMessage(String content,
       {String? chatId, String? replyToId}) async {
     final targetChatId = chatId ?? _currentChatId;
@@ -509,9 +514,9 @@ class ChatProvider with ChangeNotifier {
       // Генерируем временный ID для сообщения
       final tempId = 'temp_${DateTime.now().millisecondsSinceEpoch}';
 
-      // ⭐ ИСПРАВЛЕНО: Отправляем через WebSocket, а не REST API!
+      // Отправляем через WebSocket
       _wsManager.send({
-        'type': 'send_message', // или 'message'
+        'type': 'send_message',
         'chatId': targetChatId,
         'content': content,
         'tempId': tempId,

@@ -15,7 +15,7 @@ import 'screens/auth/invite_register_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/call_screen.dart';
 import 'services/webrtc_service.dart';
-import './services/notification_service.dart';
+import 'services/fcm_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
@@ -71,20 +71,21 @@ void main() async {
       print('[Main] ✅ Firebase инициализирован для Web');
     } else {
       // Для мобильных платформ используем firebase_options.dart
+      print('[Main] 📱 Инициализация Firebase для Mobile...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
       print('[Main] ✅ Firebase инициализирован для Mobile');
-    }
 
-    // Инициализация сервиса уведомлений
-    print('[Main] 🔔 Инициализация сервиса уведомлений...');
-    try {
-      await NotificationService.instance.initialize();
-      print('[Main] ✅ Сервис уведомлений инициализирован');
-    } catch (e) {
-      print('[Main] ⚠️ Ошибка инициализации уведомлений: $e');
-      // Продолжаем работу даже если уведомления не работают
+      // ⭐ ДОБАВЛЕНО: Инициализация FCM для мобильных платформ
+      print('[Main] 📱 Инициализация FCM...');
+      try {
+        await FCMService().initialize();
+        print('[Main] ✅ FCM успешно инициализирован');
+      } catch (e) {
+        print('[Main] ⚠️ Ошибка инициализации FCM: $e');
+        // Продолжаем работу даже если FCM не инициализирован
+      }
     }
   } catch (e, stackTrace) {
     print('[Main] ❌ Ошибка инициализации Firebase: $e');
@@ -196,19 +197,21 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
         print('[Init] ========================================');
 
-        // Регистрируем FCM токен
-        print('[Init] 📱 Попытка получения FCM токена...');
-        try {
-          final fcmToken = NotificationService.instance.fcmToken;
-          if (fcmToken != null && fcmToken.isNotEmpty) {
-            print(
-                '[Init] ✅ FCM токен получен: ${fcmToken.substring(0, 20)}...');
-          } else {
-            print('[Init] ⚠️ FCM токен пуст или не получен');
+        // ⭐ ДОБАВЛЕНО: Регистрируем FCM токен для мобильных платформ
+        if (!kIsWeb) {
+          print('[Init] 📱 Регистрация FCM токена...');
+          try {
+            final fcmToken = await FCMService().getToken();
+            if (fcmToken != null && fcmToken.isNotEmpty) {
+              print(
+                  '[Init] ✅ FCM токен получен: ${fcmToken.substring(0, 30)}...');
+            } else {
+              print('[Init] ⚠️ FCM токен не получен');
+            }
+          } catch (e) {
+            print('[Init] ⚠️ Ошибка получения FCM токена: $e');
+            // Продолжаем работу без FCM
           }
-        } catch (e) {
-          print('[Init] ⚠️ Ошибка получения FCM токена: $e');
-          // Продолжаем работу без FCM
         }
 
         print('[Init] 🔌 Инициализация WebRTC...');
