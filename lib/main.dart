@@ -399,7 +399,77 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     print('[CallOverlay] initState - инициализация overlay');
     print('[CallOverlay] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
     print('[CallOverlay] ========================================');
+
+    // ⭐ НОВОЕ: Подписываемся на FCM callback для мобильных платформ
+    if (!kIsWeb) {
+      _setupFCMCallback();
+    }
+
     print('[CallOverlay] ⏳ Ожидаем инициализации WebRTC...');
+  }
+
+  // ⭐ НОВОЕ: Настройка FCM callback
+  void _setupFCMCallback() {
+    print('[CallOverlay] ========================================');
+    print('[CallOverlay] 📱 Настройка FCM callback для входящих звонков');
+    print('[CallOverlay] ========================================');
+
+    try {
+      final fcmService = FCMService();
+
+      // Устанавливаем callback для входящих звонков
+      fcmService.onIncomingCall = (data) {
+        print('[CallOverlay] ========================================');
+        print('[CallOverlay] 🔔 FCM CALLBACK: Входящий звонок!');
+        print('[CallOverlay] Данные: $data');
+        print('[CallOverlay] ========================================');
+
+        if (!mounted) {
+          print('[CallOverlay] ⚠️ Widget не смонтирован, игнорируем');
+          return;
+        }
+
+        // Извлекаем данные
+        final callId = data['callId'];
+        final chatId = data['chatId'] ?? 'unknown'; // ⭐ Добавили chatId
+        final callerName = data['callerName'] ?? 'Unknown';
+        final callType = data['callType'] ?? 'video';
+        final callerAvatar = data['callerAvatar'];
+
+        if (callId == null) {
+          print('[CallOverlay] ❌ callId отсутствует в данных');
+          return;
+        }
+
+        print('[CallOverlay] 📞 Создаем Call объект:');
+        print('[CallOverlay]   - callId: $callId');
+        print('[CallOverlay]   - chatId: $chatId');
+        print('[CallOverlay]   - callerName: $callerName');
+        print('[CallOverlay]   - callType: $callType');
+
+        // Создаем Call объект из FCM данных
+        final incomingCall = Call(
+          id: callId,
+          chatId: chatId, // ⭐ Добавили chatId
+          callerId: '', // Будет заполнено WebRTC
+          callerName: callerName,
+          receiverId: '', // Текущий пользователь
+          receiverName: 'You',
+          callType: callType,
+          status: CallStatus.incoming,
+          startTime: DateTime.now(),
+        );
+
+        print('[CallOverlay] ✅ Call объект создан, показываем overlay');
+
+        // Показываем overlay
+        _showIncomingCallOverlay(incomingCall);
+      };
+
+      print('[CallOverlay] ✅ FCM callback установлен');
+    } catch (e) {
+      print('[CallOverlay] ❌ Ошибка настройки FCM callback: $e');
+    }
   }
 
   void onWebRTCReady() {
@@ -485,10 +555,18 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
               print('[CallOverlay] onDismiss вызван');
               _hideIncomingCallOverlay();
             },
-            onAccept: () {
+            onAccept: () async {
               print('[CallOverlay] ========================================');
-              print('[CallOverlay] ✅ onAccept - открываем CallScreen');
+              print('[CallOverlay] ✅ onAccept - принимаем звонок');
               print('[CallOverlay] ========================================');
+
+              // ⭐ ВАЖНО: Отправляем answer через WebRTC
+              try {
+                await WebRTCService.instance.answerCall(call.id);
+                print('[CallOverlay] ✅ answerCall вызван');
+              } catch (e) {
+                print('[CallOverlay] ❌ Ошибка answerCall: $e');
+              }
 
               // Закрываем overlay
               _hideIncomingCallOverlay();
@@ -525,6 +603,17 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     print('[CallOverlay] ========================================');
     print('[CallOverlay] dispose - отменяем подписку');
     print('[CallOverlay] ========================================');
+
+    // ⭐ Очищаем FCM callback
+    if (!kIsWeb) {
+      try {
+        FCMService().onIncomingCall = null;
+        print('[CallOverlay] ✅ FCM callback очищен');
+      } catch (e) {
+        print('[CallOverlay] ⚠️ Ошибка очистки FCM callback: $e');
+      }
+    }
+
     _hideIncomingCallOverlay();
     _callSubscription?.cancel();
     super.dispose();

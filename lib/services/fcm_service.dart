@@ -20,6 +20,9 @@ class FCMService {
   FlutterLocalNotificationsPlugin? _localNotifications;
   String? _fcmToken;
 
+  // ⭐ Callback для входящих звонков
+  Function(Map<String, dynamic>)? onIncomingCall;
+
   String? get fcmToken => _fcmToken;
 
   /// Инициализация FCM
@@ -54,14 +57,12 @@ class FCMService {
     try {
       _localNotifications = FlutterLocalNotificationsPlugin();
 
-      // Настройки инициализации для Android
       const initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');
 
       const initializationSettings =
           InitializationSettings(android: initializationSettingsAndroid);
 
-      // Инициализируем плагин
       await _localNotifications!.initialize(
         initializationSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
@@ -85,7 +86,6 @@ class FCMService {
     print('[FCM] 📢 Создание notification channels...');
 
     try {
-      // Канал для звонков
       const callsChannel = AndroidNotificationChannel(
         'calls_channel',
         'Incoming Calls',
@@ -97,7 +97,6 @@ class FCMService {
         showBadge: true,
       );
 
-      // Канал для сообщений
       const messagesChannel = AndroidNotificationChannel(
         'messages_channel',
         'Messages',
@@ -107,7 +106,6 @@ class FCMService {
         enableVibration: true,
       );
 
-      // Получаем Android implementation - ВСЁ В ОДНОЙ СТРОКЕ!
       final android = _localNotifications!
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
@@ -152,7 +150,6 @@ class FCMService {
     print('[FCM] 🎯 Обработка действия: $actionId');
     print('[FCM] 📦 Payload: $payload');
 
-    // Парсим payload: "type:id:extra"
     final parts = payload.split(':');
     if (parts.isEmpty) return;
 
@@ -216,7 +213,6 @@ class FCMService {
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         print('[FCM] ✅ Разрешения получены');
 
-        // Настраиваем presentation options
         await _firebaseMessaging.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
@@ -241,7 +237,7 @@ class FCMService {
       String? token = await _firebaseMessaging.getToken();
 
       if (token == null && !kIsWeb && Platform.isAndroid) {
-        print('[FCM] 🔍 Пробуем получить токен из SharedPreferences...');
+        print('[FCM] 🔄 Пробуем получить токен из SharedPreferences...');
         try {
           token = await platform.invokeMethod('getFCMToken');
         } catch (e) {
@@ -294,12 +290,11 @@ class FCMService {
       _registerTokenOnBackend(newToken);
     });
 
-    // Foreground messages
+    // ⭐ FOREGROUND MESSAGES - обрабатываем data-only сообщения
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('[FCM] ========================================');
       print('[FCM] 📩 Foreground уведомление');
-      print('[FCM] Title: ${message.notification?.title}');
-      print('[FCM] Body: ${message.notification?.body}');
+      print('[FCM] Notification: ${message.notification}');
       print('[FCM] Data: ${message.data}');
       print('[FCM] ========================================');
 
@@ -350,19 +345,48 @@ class FCMService {
     }
   }
 
-  /// Обработка foreground уведомления
+  /// ⭐ ИСПРАВЛЕНО: Обработка foreground уведомления
   void _handleForegroundMessage(RemoteMessage message) {
-    final type = message.data['type'];
+    final data = message.data;
+    final type = data['type'];
+
+    print('[FCM] 🔍 Тип сообщения: $type');
+    print('[FCM] 📦 Полные данные: $data');
 
     switch (type) {
-      case 'call':
-        print('[FCM] 📞 Входящий звонок (foreground)');
-        _showFullScreenCallNotification(message.data);
+      case 'incoming_call':
+        print('[FCM] 📞 Входящий звонок (foreground) - вызываем callback');
+
+        // ⭐ Вызываем callback вместо показа уведомления
+        if (onIncomingCall != null) {
+          // Нормализуем данные (обрабатываем оба варианта ключей)
+          final normalizedData = {
+            'callId': data['callId'] ?? data['call_id'],
+            'callerName': data['callerName'] ?? data['caller_name'],
+            'callType': data['callType'] ?? data['call_type'],
+            'callerAvatar': data['callerAvatar'] ?? data['caller_avatar'],
+          };
+
+          print('[FCM] ✅ Вызов callback с данными: $normalizedData');
+          onIncomingCall!(normalizedData);
+        } else {
+          print('[FCM] ⚠️ Callback onIncomingCall не установлен!');
+          // Fallback: показываем уведомление
+          _showFullScreenCallNotification(data);
+        }
         break;
 
       case 'new_message':
         print('[FCM] 💬 Новое сообщение (foreground)');
-        _showMessageNotification(message.data);
+        _showMessageNotification(data);
+        break;
+
+      case 'call_ended':
+        print('[FCM] 📵 Звонок завершен - отменяем уведомление');
+        final callId = data['callId'] ?? data['call_id'];
+        if (callId != null) {
+          cancelCallNotification(callId);
+        }
         break;
 
       default:
@@ -383,15 +407,15 @@ class FCMService {
     print('[FCM] ========================================');
 
     try {
-      final callId = data['call_id'] ?? data['callId'] ?? 'unknown';
-      final callerName = data['caller_name'] ?? data['callerName'] ?? 'Unknown';
-      final callType = data['call_type'] ?? data['callType'] ?? 'video';
+      // ⭐ Обрабатываем оба варианта ключей
+      final callId = data['callId'] ?? data['call_id'] ?? 'unknown';
+      final callerName = data['callerName'] ?? data['caller_name'] ?? 'Unknown';
+      final callType = data['callType'] ?? data['call_type'] ?? 'video';
 
       print('[FCM] Call ID: $callId');
       print('[FCM] Caller: $callerName');
       print('[FCM] Type: $callType');
 
-      // Создаем детали уведомления
       final androidDetails = AndroidNotificationDetails(
         'calls_channel',
         'Incoming Calls',
@@ -450,8 +474,9 @@ class FCMService {
 
     try {
       final chatId = data['chatId'] ?? data['chat_id'] ?? 'unknown';
-      final senderName = data['sender_name'] ?? data['senderName'] ?? 'Unknown';
-      final messageText = data['message'] ?? 'New message';
+      final senderName = data['senderName'] ?? data['sender_name'] ?? 'Unknown';
+      final messageText =
+          data['messageText'] ?? data['message'] ?? 'New message';
 
       const androidDetails = AndroidNotificationDetails(
         'messages_channel',
