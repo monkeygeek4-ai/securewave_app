@@ -14,7 +14,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'chat_view.dart';
 import 'profile/profile_settings_screen.dart';
 import 'invites_screen.dart';
-import '../widgets/notification_debug_widget.dart'; // ДОБАВЛЕНО
+//import '../widgets/notification_debug_widget.dart'; // ДОБАВЛЕНО
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -620,7 +620,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      NotificationDebugWidget(),
+                                      //NotificationDebugWidget(),
                                     ],
                                   ),
                                 ),

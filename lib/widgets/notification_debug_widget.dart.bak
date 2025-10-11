@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/notification_service.dart';
+//import '../services/notification_service.dart';
 import '../services/api_service.dart';
 
 class NotificationDebugWidget extends StatefulWidget {
@@ -21,7 +21,7 @@ class _NotificationDebugWidgetState extends State<NotificationDebugWidget> {
 
   void _checkStatus() {
     setState(() {
-      _token = NotificationService.instance.fcmToken;
+      // _token = NotificationService.instance.fcmToken;
       _status = _token != null && _token!.isNotEmpty
           ? '✅ Инициализировано'
           : '❌ Токен не получен';
@@ -35,7 +35,7 @@ class _NotificationDebugWidgetState extends State<NotificationDebugWidget> {
     });
 
     try {
-      await NotificationService.instance.initialize();
+      //await NotificationService.instance.initialize();
       _checkStatus();
 
       if (mounted) {

@@ -20,37 +20,28 @@ class FCMService {
   FlutterLocalNotificationsPlugin? _localNotifications;
   String? _fcmToken;
 
-  // ⭐ Callback для входящих звонков
   Function(Map<String, dynamic>)? onIncomingCall;
 
   String? get fcmToken => _fcmToken;
 
-  /// Инициализация FCM
   Future<void> initialize() async {
     print('[FCM] ========================================');
     print('[FCM] 🚀 Инициализация FCM Service');
     print('[FCM] Платформа: ${kIsWeb ? "Web" : Platform.operatingSystem}');
     print('[FCM] ========================================');
 
-    // Инициализируем локальные уведомления для Android
     if (!kIsWeb && Platform.isAndroid) {
       await _initializeLocalNotifications();
     }
 
-    // Запрашиваем разрешения
     await _requestPermissions();
-
-    // Получаем токен
     await _getToken();
-
-    // Настраиваем слушателей
     _setupListeners();
 
     print('[FCM] ✅ FCM Service полностью инициализирован');
     print('[FCM] ========================================');
   }
 
-  /// Инициализация локальных уведомлений для Android
   Future<void> _initializeLocalNotifications() async {
     print('[FCM] 📱 Инициализация локальных уведомлений...');
 
@@ -70,7 +61,6 @@ class FCMService {
             _onBackgroundNotificationTap,
       );
 
-      // Создаем каналы уведомлений
       await _createNotificationChannels();
 
       print('[FCM] ✅ Локальные уведомления инициализированы');
@@ -79,7 +69,6 @@ class FCMService {
     }
   }
 
-  /// Создание каналов уведомлений
   Future<void> _createNotificationChannels() async {
     if (_localNotifications == null) return;
 
@@ -122,7 +111,6 @@ class FCMService {
     }
   }
 
-  /// Обработка клика по уведомлению (foreground/background)
   void _onNotificationTap(NotificationResponse response) {
     print('[FCM] ========================================');
     print('[FCM] 👆 Клик по уведомлению (foreground)');
@@ -133,7 +121,6 @@ class FCMService {
     _handleNotificationAction(response.actionId, response.payload);
   }
 
-  /// Обработка клика по уведомлению (terminated state)
   @pragma('vm:entry-point')
   static void _onBackgroundNotificationTap(NotificationResponse response) {
     print('[FCM] ========================================');
@@ -143,7 +130,6 @@ class FCMService {
     print('[FCM] ========================================');
   }
 
-  /// Обработка действий с уведомлением
   void _handleNotificationAction(String? actionId, String? payload) {
     if (payload == null) return;
 
@@ -170,7 +156,6 @@ class FCMService {
 
           if (actionId == 'accept') {
             print('[FCM] ✅ Принятие звонка через уведомление');
-            // TODO: Открыть CallScreen и принять звонок
           } else if (actionId == 'decline') {
             print('[FCM] ❌ Отклонение звонка через уведомление');
             cancelCallNotification(callId);
@@ -184,7 +169,6 @@ class FCMService {
         if (parts.length >= 2) {
           final chatId = parts[1];
           print('[FCM] 💬 Открытие чата: $chatId');
-          // TODO: Навигация к чату
         }
         break;
 
@@ -193,7 +177,6 @@ class FCMService {
     }
   }
 
-  /// Запрос разрешений
   Future<void> _requestPermissions() async {
     print('[FCM] 📱 Запрос разрешений на уведомления');
 
@@ -229,7 +212,6 @@ class FCMService {
     }
   }
 
-  /// Получение FCM токена
   Future<String?> _getToken() async {
     try {
       print('[FCM] 🔑 Получение FCM токена...');
@@ -260,7 +242,6 @@ class FCMService {
     }
   }
 
-  /// Регистрация токена на бэкенде
   Future<void> _registerTokenOnBackend(String token) async {
     try {
       print('[FCM] 📤 Регистрация токена на бэкенде...');
@@ -279,29 +260,39 @@ class FCMService {
     }
   }
 
-  /// Настройка слушателей уведомлений
   void _setupListeners() {
     print('[FCM] 👂 Настройка слушателей уведомлений');
 
-    // Обновление токена
     _firebaseMessaging.onTokenRefresh.listen((newToken) {
       print('[FCM] 🔄 FCM токен обновлен');
       _fcmToken = newToken;
       _registerTokenOnBackend(newToken);
     });
 
-    // ⭐ FOREGROUND MESSAGES - обрабатываем data-only сообщения
+    // ⭐ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ FOREGROUND MESSAGES
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('[FCM] ========================================');
-      print('[FCM] 📩 Foreground уведомление');
-      print('[FCM] Notification: ${message.notification}');
-      print('[FCM] Data: ${message.data}');
+      print('[FCM] 📩 📩 📩 FOREGROUND MESSAGE ПОЛУЧЕНО! 📩 📩 📩');
+      print('[FCM] ========================================');
+      print('[FCM] Message ID: ${message.messageId}');
+      print('[FCM] Sent Time: ${message.sentTime}');
+      print('[FCM] ========================================');
+      print('[FCM] 📦 NOTIFICATION:');
+      print('[FCM]   - Title: ${message.notification?.title}');
+      print('[FCM]   - Body: ${message.notification?.body}');
+      print('[FCM]   - Android: ${message.notification?.android}');
+      print('[FCM] ========================================');
+      print('[FCM] 📦 DATA PAYLOAD:');
+      message.data.forEach((key, value) {
+        print('[FCM]   - $key: $value');
+      });
+      print('[FCM] ========================================');
+      print('[FCM] 📦 DATA как JSON: ${message.data}');
       print('[FCM] ========================================');
 
       _handleForegroundMessage(message);
     });
 
-    // Background/terminated -> foreground (клик по уведомлению)
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('[FCM] ========================================');
       print('[FCM] 🖱️ Клик по уведомлению (background->foreground)');
@@ -311,7 +302,6 @@ class FCMService {
       _handleNotificationClick(message.data);
     });
 
-    // Нативный обработчик кликов (Android)
     platform.setMethodCallHandler((call) async {
       if (call.method == 'onNotificationClick') {
         final data = Map<String, dynamic>.from(call.arguments);
@@ -321,13 +311,11 @@ class FCMService {
       }
     });
 
-    // Проверяем начальное уведомление
     _checkInitialMessage();
 
     print('[FCM] ✅ Все слушатели настроены');
   }
 
-  /// Проверка начального уведомления
   Future<void> _checkInitialMessage() async {
     try {
       final initialMessage = await _firebaseMessaging.getInitialMessage();
@@ -345,21 +333,22 @@ class FCMService {
     }
   }
 
-  /// ⭐ ИСПРАВЛЕНО: Обработка foreground уведомления
   void _handleForegroundMessage(RemoteMessage message) {
     final data = message.data;
     final type = data['type'];
 
-    print('[FCM] 🔍 Тип сообщения: $type');
-    print('[FCM] 📦 Полные данные: $data');
+    print('[FCM] ========================================');
+    print('[FCM] 🔍 ОБРАБОТКА FOREGROUND СООБЩЕНИЯ');
+    print('[FCM] Тип: $type');
+    print('[FCM] Данные: $data');
+    print('[FCM] Callback установлен: ${onIncomingCall != null}');
+    print('[FCM] ========================================');
 
     switch (type) {
       case 'incoming_call':
-        print('[FCM] 📞 Входящий звонок (foreground) - вызываем callback');
+        print('[FCM] 📞 📞 📞 ВХОДЯЩИЙ ЗВОНОК ОБНАРУЖЕН! 📞 📞 📞');
 
-        // ⭐ Вызываем callback вместо показа уведомления
         if (onIncomingCall != null) {
-          // Нормализуем данные (обрабатываем оба варианта ключей)
           final normalizedData = {
             'callId': data['callId'] ?? data['call_id'],
             'callerName': data['callerName'] ?? data['caller_name'],
@@ -367,11 +356,15 @@ class FCMService {
             'callerAvatar': data['callerAvatar'] ?? data['caller_avatar'],
           };
 
-          print('[FCM] ✅ Вызов callback с данными: $normalizedData');
+          print('[FCM] ✅ Вызов callback с данными:');
+          normalizedData.forEach((key, value) {
+            print('[FCM]   - $key: $value');
+          });
+
           onIncomingCall!(normalizedData);
         } else {
-          print('[FCM] ⚠️ Callback onIncomingCall не установлен!');
-          // Fallback: показываем уведомление
+          print('[FCM] ⚠️⚠️⚠️ CALLBACK НЕ УСТАНОВЛЕН! ⚠️⚠️⚠️');
+          print('[FCM] Показываем fallback уведомление...');
           _showFullScreenCallNotification(data);
         }
         break;
@@ -390,11 +383,12 @@ class FCMService {
         break;
 
       default:
-        print('[FCM] 📦 Неизвестный тип: $type');
+        print('[FCM] ❓ Неизвестный тип: $type');
+        print('[FCM] Возможно это data-only сообщение?');
+        print('[FCM] Все ключи в data: ${data.keys.toList()}');
     }
   }
 
-  /// Полноэкранное уведомление о звонке
   Future<void> _showFullScreenCallNotification(
       Map<String, dynamic> data) async {
     if (_localNotifications == null) {
@@ -407,7 +401,6 @@ class FCMService {
     print('[FCM] ========================================');
 
     try {
-      // ⭐ Обрабатываем оба варианта ключей
       final callId = data['callId'] ?? data['call_id'] ?? 'unknown';
       final callerName = data['callerName'] ?? data['caller_name'] ?? 'Unknown';
       final callType = data['callType'] ?? data['call_type'] ?? 'video';
@@ -468,7 +461,6 @@ class FCMService {
     }
   }
 
-  /// Показ уведомления о сообщении
   Future<void> _showMessageNotification(Map<String, dynamic> data) async {
     if (_localNotifications == null) return;
 
@@ -502,7 +494,6 @@ class FCMService {
     }
   }
 
-  /// Обработка клика по уведомлению
   void _handleNotificationClick(Map<String, dynamic> data) {
     final type = data['type'];
 
@@ -510,7 +501,6 @@ class FCMService {
       case 'new_message':
         final chatId = data['chatId'];
         print('[FCM] 💬 Открываем чат: $chatId');
-        // TODO: Навигация к чату
         break;
 
       case 'call':
@@ -521,10 +511,8 @@ class FCMService {
 
         if (action == 'accept') {
           print('[FCM] ✅ Принятие звонка');
-          // TODO: Принять звонок
         } else if (action == 'decline') {
           print('[FCM] ❌ Отклонение звонка');
-          // TODO: Отклонить звонок
         }
         break;
 
@@ -533,7 +521,6 @@ class FCMService {
     }
   }
 
-  /// Отмена уведомления о звонке
   Future<void> cancelCallNotification(String callId) async {
     if (_localNotifications != null) {
       try {
@@ -545,7 +532,6 @@ class FCMService {
     }
   }
 
-  /// Получить текущий токен
   Future<String?> getToken() async {
     if (_fcmToken != null) {
       return _fcmToken;
@@ -553,7 +539,6 @@ class FCMService {
     return await _getToken();
   }
 
-  /// Обновить токен на бэкенде
   Future<void> refreshToken() async {
     final token = await getToken();
     if (token != null) {

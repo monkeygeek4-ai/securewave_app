@@ -1,6 +1,5 @@
 package com.securewave.app
 
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -9,8 +8,12 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.securewave.app/notification"
-    private var methodChannel: MethodChannel? = null
+    // ⭐ ДВА КАНАЛА: один для уведомлений, другой для звонков
+    private val NOTIFICATION_CHANNEL = "com.securewave.app/notification"
+    private val CALL_CHANNEL = "com.securewave.app/call"
+    
+    private var notificationChannel: MethodChannel? = null
+    private var callChannel: MethodChannel? = null
     
     companion object {
         private const val TAG = "MainActivity"
@@ -23,13 +26,81 @@ class MainActivity: FlutterActivity() {
         Log.d(TAG, "🚀 configureFlutterEngine вызван")
         Log.d(TAG, "========================================")
         
-        // Создаем MethodChannel для общения с Flutter
-        methodChannel = MethodChannel(
+        // ============================================
+        // 1️⃣ КАНАЛ ДЛЯ УВЕДОМЛЕНИЙ (существующий)
+        // ============================================
+        notificationChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
-            CHANNEL
+            NOTIFICATION_CHANNEL
+        )
+        Log.d(TAG, "✅ Notification MethodChannel создан: $NOTIFICATION_CHANNEL")
+        
+        // ============================================
+        // 2️⃣ КАНАЛ ДЛЯ ЗВОНКОВ (новый)
+        // ============================================
+        callChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            CALL_CHANNEL
         )
         
-        Log.d(TAG, "✅ MethodChannel создан: $CHANNEL")
+        callChannel?.setMethodCallHandler { call, result ->
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "📞 Получен вызов метода: ${call.method}")
+            Log.d(TAG, "Аргументы: ${call.arguments}")
+            Log.d(TAG, "========================================")
+            
+            when (call.method) {
+                "showCallScreen" -> {
+                    try {
+                        val callId = call.argument<String>("callId")
+                        val callerName = call.argument<String>("callerName")
+                        val callType = call.argument<String>("callType")
+                        
+                        Log.d(TAG, "Параметры звонка:")
+                        Log.d(TAG, "  - callId: $callId")
+                        Log.d(TAG, "  - callerName: $callerName")
+                        Log.d(TAG, "  - callType: $callType")
+                        
+                        if (callId == null || callerName == null) {
+                            Log.e(TAG, "❌ Отсутствуют обязательные параметры")
+                            result.error("INVALID_ARGUMENTS", "Missing required arguments", null)
+                            return@setMethodCallHandler
+                        }
+                        
+                        Log.d(TAG, "🚀 Запуск CallActivity...")
+                        
+                        val intent = Intent(this, CallActivity::class.java).apply {
+                            putExtra("callId", callId)
+                            putExtra("callerName", callerName)
+                            putExtra("callType", callType ?: "audio")
+                            
+                            // Флаги для запуска поверх всего (даже lockscreen)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        }
+                        
+                        startActivity(intent)
+                        
+                        Log.d(TAG, "✅ CallActivity запущена успешно")
+                        result.success(true)
+                        
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Ошибка запуска CallActivity: ${e.message}")
+                        Log.e(TAG, "Stack trace:", e)
+                        result.error("START_ACTIVITY_ERROR", e.message, null)
+                    }
+                }
+                else -> {
+                    Log.w(TAG, "⚠️ Неизвестный метод: ${call.method}")
+                    result.notImplemented()
+                }
+            }
+            
+            Log.d(TAG, "========================================")
+        }
+        
+        Log.d(TAG, "✅ Call MethodChannel создан: $CALL_CHANNEL")
         Log.d(TAG, "========================================")
     }
 
@@ -134,20 +205,19 @@ class MainActivity: FlutterActivity() {
     }
     
     /**
-     * Отправка данных во Flutter через MethodChannel
+     * Отправка данных во Flutter через MethodChannel (для уведомлений)
      */
     private fun sendToFlutter(data: Map<String, Any?>) {
-        if (methodChannel == null) {
-            Log.w(TAG, "⚠️ MethodChannel is null, сохраняем данные для последующей отправки")
-            // Можно сохранить данные и отправить позже, когда channel будет готов
+        if (notificationChannel == null) {
+            Log.w(TAG, "⚠️ Notification MethodChannel is null, сохраняем данные для последующей отправки")
             return
         }
         
-        Log.d(TAG, "📤 Отправка данных во Flutter через MethodChannel")
+        Log.d(TAG, "📤 Отправка данных во Flutter через Notification MethodChannel")
         Log.d(TAG, "Data: $data")
         
         try {
-            methodChannel?.invokeMethod("onNotificationTap", data)
+            notificationChannel?.invokeMethod("onNotificationTap", data)
             Log.d(TAG, "✅ Данные успешно отправлены во Flutter")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Ошибка отправки данных во Flutter: ${e.message}")

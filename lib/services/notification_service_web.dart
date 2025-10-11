@@ -8,16 +8,6 @@ import 'dart:io' show Platform;
 import '../services/api_service.dart';
 import '../services/title_notification_service.dart';
 
-// Background message handler (должен быть top-level функцией)
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  print('[FCM Background] Получено сообщение: ${message.messageId}');
-
-  // Обрабатываем уведомление в фоне
-  await NotificationService.handleBackgroundMessage(message);
-}
-
 class NotificationService {
   static final NotificationService instance = NotificationService._();
   NotificationService._();
@@ -97,9 +87,8 @@ class NotificationService {
         _sendTokenToServer(newToken);
       });
 
-      // Background message handler
-      FirebaseMessaging.onBackgroundMessage(
-          _firebaseMessagingBackgroundHandler);
+      // ❌❌❌ ОТКЛЮЧЕНО: Background handler конфликтует с fcm_service.dart
+      // FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
       // Foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -235,7 +224,6 @@ class NotificationService {
     } else if (type == 'incoming_call') {
       // Для звонков тоже показываем в заголовке
       if (kIsWeb) {
-        // ИСПРАВЛЕНО: добавлен именованный параметр duration
         TitleNotificationService.instance.showTemporaryNotification(
             'Входящий звонок от ${data['callerName']}',
             duration: const Duration(seconds: 30));
@@ -250,11 +238,10 @@ class NotificationService {
     }
   }
 
-  // Обработка background сообщений
-  static Future<void> handleBackgroundMessage(RemoteMessage message) async {
-    print('[FCM Background] Обработка: ${message.data}');
-    // Здесь можно обработать фоновое сообщение
-  }
+  // ❌❌❌ ОТКЛЮЧЕНО: Обработка background сообщений
+  // static Future<void> handleBackgroundMessage(RemoteMessage message) async {
+  //   print('[FCM Background] Обработка: ${message.data}');
+  // }
 
   // Когда пользователь открывает уведомление
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
@@ -265,10 +252,8 @@ class NotificationService {
 
     // Навигация в зависимости от типа
     if (type == 'new_message') {
-      // TODO: Открыть чат
       print('[FCM Opened] Открытие чата: ${data['chatId']}');
     } else if (type == 'incoming_call') {
-      // TODO: Открыть экран звонка
       print('[FCM Opened] Открытие звонка: ${data['callId']}');
     }
   }
@@ -429,22 +414,17 @@ class NotificationService {
         if (type == 'call') {
           if (response.actionId == 'accept') {
             print('[Action] Принять звонок: $id');
-            // TODO: Реализовать логику принятия звонка
           } else if (response.actionId == 'decline') {
             print('[Action] Отклонить звонок: $id');
-            // TODO: Реализовать логику отклонения звонка
           } else {
             print('[Action] Открыть экран звонка: $id');
-            // TODO: Навигация к экрану звонка
           }
         } else if (type == 'message') {
           if (response.actionId == 'reply') {
             print('[Action] Ответить в чат: $id');
             print('[Action] Текст: ${response.input}');
-            // TODO: Отправить сообщение
           } else if (response.actionId == 'mark_read') {
             print('[Action] Пометить прочитанным: $id');
-            // TODO: Обновить статус сообщения
 
             // Уменьшаем счетчик непрочитанных
             if (kIsWeb) {
@@ -452,7 +432,6 @@ class NotificationService {
             }
           } else {
             print('[Action] Открыть чат: $id');
-            // TODO: Навигация к чату
           }
         }
       }

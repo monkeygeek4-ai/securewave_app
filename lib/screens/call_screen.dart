@@ -136,20 +136,46 @@ class _CallScreenState extends State<CallScreen> {
     _localStreamSubscription = _webrtcService.localStream.listen((stream) {
       if (_isDisposing || !mounted || stream == null) return;
 
-      print('[CallScreen] Получен локальный stream');
-      _localRenderer.srcObject = stream;
+      print('[CallScreen] 📹 Получен локальный stream');
+      setState(() {
+        _localRenderer.srcObject = stream;
+      });
     });
 
     _remoteStreamSubscription = _webrtcService.remoteStream.listen((stream) {
       if (_isDisposing || !mounted || stream == null) return;
 
-      print('[CallScreen] Получен удаленный stream');
+      print('[CallScreen] 🔊 Получен удаленный stream');
       print('[CallScreen] Stream ID: ${stream.id}');
       print('[CallScreen] Аудио треков: ${stream.getAudioTracks().length}');
       print('[CallScreen] Видео треков: ${stream.getVideoTracks().length}');
 
-      _remoteRenderer.srcObject = stream;
+      setState(() {
+        _remoteRenderer.srcObject = stream;
+      });
+
+      // Проверяем треки
+      _checkAudioTracks(stream);
     });
+  }
+
+  void _checkAudioTracks(rtc.MediaStream stream) {
+    try {
+      final audioTracks = stream.getAudioTracks();
+      print('[CallScreen] 🔍 Проверка аудио треков:');
+      print('[CallScreen] Количество аудио треков: ${audioTracks.length}');
+
+      for (var i = 0; i < audioTracks.length; i++) {
+        final track = audioTracks[i];
+        print('[CallScreen] Трек $i:');
+        print('[CallScreen]   - ID: ${track.id}');
+        print('[CallScreen]   - Label: ${track.label}');
+        print('[CallScreen]   - Enabled: ${track.enabled}');
+        print('[CallScreen]   - Muted: ${track.muted}');
+      }
+    } catch (e) {
+      print('[CallScreen] Ошибка проверки треков: $e');
+    }
   }
 
   void _startCallTimer() {

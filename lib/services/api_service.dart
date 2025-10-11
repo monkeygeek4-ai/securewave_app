@@ -19,11 +19,8 @@ class ApiService {
 
   static String get baseUrl {
     if (kIsWeb) {
-      // Для веб-версии
       return 'https://securewave.sbk-19.ru/backend/api';
     }
-    // Для Android - используйте IP вашего компьютера в локальной сети
-    // Узнать IP: ifconfig (Mac/Linux) или ipconfig (Windows)
     return 'https://securewave.sbk-19.ru/backend/api';
   }
 
@@ -597,36 +594,101 @@ class ApiService {
 
   // ===== FCM УВЕДОМЛЕНИЯ =====
 
-  /// Регистрация FCM токена
+  /// ✅✅✅ ИСПРАВЛЕНО: Регистрация FCM токена с детальным логированием
   Future<Map<String, dynamic>?> registerFCMToken(
     String token,
     String platform,
   ) async {
     try {
-      _log('📤 Регистрация FCM токена на платформе: $platform');
-      _log('   Токен: ${token.substring(0, 20)}...');
+      _log('========================================');
+      _log('📤 РЕГИСТРАЦИЯ FCM ТОКЕНА');
+      _log('========================================');
+      _log('Платформа: $platform');
+      _log('Токен (первые 30): ${token.substring(0, 30)}...');
+      _log('Длина токена: ${token.length}');
+      _log('Endpoint: $baseUrl/notifications/register.php');
 
-      final response = await _dio.post('/notifications/register.php', data: {
+      // ⭐ ВАЖНО: Проверяем что токен авторизации установлен
+      if (_authToken == null || _authToken!.isEmpty) {
+        _log('⚠️⚠️⚠️ ТОКЕН АВТОРИЗАЦИИ НЕ УСТАНОВЛЕН!');
+        _log('Пытаемся загрузить токен...');
+        await _loadToken();
+
+        if (_authToken == null || _authToken!.isEmpty) {
+          _log('❌ Не удалось загрузить токен авторизации');
+          _log('FCM токен НЕ БУДЕТ зарегистрирован');
+          return {'success': false, 'error': 'No auth token'};
+        }
+
+        _log(
+            '✅ Токен авторизации загружен: ${_authToken!.substring(0, 20)}...');
+      } else {
+        _log(
+            '✅ Токен авторизации присутствует: ${_authToken!.substring(0, 20)}...');
+      }
+
+      final requestData = {
         'token': token,
         'platform': platform,
-      });
+      };
 
-      _log('📥 Ответ регистрации FCM: ${response.statusCode}');
-      _log('   Данные: ${response.data}');
+      _log('========================================');
+      _log('📦 Данные запроса:');
+      _log(requestData.toString());
+      _log('========================================');
+
+      final response = await _dio.post(
+        '/notifications/register.php',
+        data: requestData,
+      );
+
+      _log('========================================');
+      _log('📥 ОТВЕТ ОТ СЕРВЕРА');
+      _log('========================================');
+      _log('Статус: ${response.statusCode}');
+      _log('Данные: ${response.data}');
+      _log('========================================');
 
       if (response.statusCode == 200) {
-        _log('✅ FCM токен успешно зарегистрирован на бэкенде');
-        return response.data;
+        final responseData = response.data;
+
+        if (responseData is Map && responseData['success'] == true) {
+          _log('✅✅✅ FCM ТОКЕН УСПЕШНО ЗАРЕГИСТРИРОВАН!');
+          _log('Token ID: ${responseData['tokenId']}');
+          _log('========================================');
+          return responseData as Map<String, dynamic>;
+        } else {
+          _log('⚠️ Успешный ответ, но success != true');
+          _log('Response: $responseData');
+          return responseData is Map
+              ? responseData as Map<String, dynamic>
+              : null;
+        }
       }
 
       _log('⚠️ Неожиданный статус код: ${response.statusCode}');
+      _log('========================================');
       return null;
     } on DioException catch (e) {
-      _log('❌ DioException при регистрации FCM токена: ${e.message}');
-      _log('   Response: ${e.response?.data}');
+      _log('========================================');
+      _log('❌ DIOEXCEPTION ПРИ РЕГИСТРАЦИИ FCM');
+      _log('========================================');
+      _log('Type: ${e.type}');
+      _log('Message: ${e.message}');
+      _log('Status Code: ${e.response?.statusCode}');
+      _log('Response data: ${e.response?.data}');
+      _log('Request path: ${e.requestOptions.path}');
+      _log('Request headers: ${e.requestOptions.headers}');
+      _log('Request data: ${e.requestOptions.data}');
+      _log('========================================');
       return null;
-    } catch (e) {
-      _log('❌ Ошибка регистрации FCM токена: $e');
+    } catch (e, stackTrace) {
+      _log('========================================');
+      _log('❌ ОШИБКА РЕГИСТРАЦИИ FCM ТОКЕНА');
+      _log('========================================');
+      _log('Error: $e');
+      _log('Stack trace: $stackTrace');
+      _log('========================================');
       return null;
     }
   }

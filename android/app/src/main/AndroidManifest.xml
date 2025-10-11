@@ -64,20 +64,19 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
-
+        <!-- CallActivity для полноэкранных звонков -->
+        <activity
+            android:name=".CallActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask" />
         <!-- Метаданные Flutter -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        
-        <!-- Firebase Cloud Messaging -->
-        <service
-            android:name=".MyFirebaseMessagingService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
-            </intent-filter>
-        </service>
         
         <!-- Канал уведомлений по умолчанию -->
         <meta-data
