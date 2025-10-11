@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
@@ -16,6 +17,7 @@ import 'screens/home_screen.dart';
 import 'screens/call_screen.dart';
 import 'services/webrtc_service.dart';
 import 'services/fcm_service.dart';
+import 'services/api_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
@@ -77,13 +79,14 @@ void main() async {
       );
       print('[Main] ✅ Firebase инициализирован для Mobile');
 
-      // ⭐ ДОБАВЛЕНО: Инициализация FCM для мобильных платформ
-      print('[Main] 📱 Инициализация FCM...');
+      // ⭐ Инициализация FCM для мобильных платформ
+      print('[Main] 📱 Инициализация FCM в main()...');
       try {
         await FCMService().initialize();
-        print('[Main] ✅ FCM успешно инициализирован');
-      } catch (e) {
-        print('[Main] ⚠️ Ошибка инициализации FCM: $e');
+        print('[Main] ✅ FCM успешно инициализирован в main()');
+      } catch (e, stackTrace) {
+        print('[Main] ⚠️ Ошибка инициализации FCM в main(): $e');
+        print('[Main] Stack trace: $stackTrace');
         // Продолжаем работу даже если FCM не инициализирован
       }
     }
@@ -197,20 +200,48 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
         print('[Init] ========================================');
 
-        // ⭐ ДОБАВЛЕНО: Регистрируем FCM токен для мобильных платформ
+        // ⭐ КРИТИЧНО: Регистрируем FCM токен для мобильных платформ
         if (!kIsWeb) {
-          print('[Init] 📱 Регистрация FCM токена...');
+          print('[Init] ========================================');
+          print('[Init] 📱 НАЧАЛО РЕГИСТРАЦИИ FCM ТОКЕНА');
+          print('[Init] ========================================');
+
           try {
-            final fcmToken = await FCMService().getToken();
+            // Получаем FCM Service
+            final fcmService = FCMService();
+            print('[Init] ✅ FCM Service получен');
+
+            // Получаем токен
+            print('[Init] 🔑 Запрос FCM токена...');
+            final fcmToken = await fcmService.getToken();
+
+            print('[Init] ========================================');
             if (fcmToken != null && fcmToken.isNotEmpty) {
+              print('[Init] ✅✅✅ FCM ТОКЕН ПОЛУЧЕН!');
               print(
-                  '[Init] ✅ FCM токен получен: ${fcmToken.substring(0, 30)}...');
+                  '[Init] Token (первые 30 символов): ${fcmToken.substring(0, 30)}...');
+              print('[Init] Token length: ${fcmToken.length}');
+              print('[Init] ========================================');
+
+              // Явно регистрируем токен на бэкенде
+              print('[Init] 📤 Явная регистрация токена на бэкенде...');
+              try {
+                await fcmService.refreshToken();
+                print('[Init] ✅✅✅ ТОКЕН ЗАРЕГИСТРИРОВАН НА БЭКЕНДЕ!');
+              } catch (e) {
+                print('[Init] ❌ Ошибка явной регистрации: $e');
+              }
             } else {
-              print('[Init] ⚠️ FCM токен не получен');
+              print('[Init] ❌❌❌ FCM ТОКЕН ПУСТОЙ ИЛИ NULL!');
+              print('[Init] Token value: $fcmToken');
             }
-          } catch (e) {
-            print('[Init] ⚠️ Ошибка получения FCM токена: $e');
-            // Продолжаем работу без FCM
+            print('[Init] ========================================');
+          } catch (e, stackTrace) {
+            print('[Init] ========================================');
+            print('[Init] ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА FCM');
+            print('[Init] Ошибка: $e');
+            print('[Init] Stack trace: $stackTrace');
+            print('[Init] ========================================');
           }
         }
 
