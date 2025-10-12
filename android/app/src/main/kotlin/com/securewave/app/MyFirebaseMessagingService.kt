@@ -1,14 +1,11 @@
 package com.securewave.app
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -22,17 +19,22 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "========================================")
         Log.d(TAG, "🔥 Firebase Service создан")
+        Log.d(TAG, "========================================")
         createNotificationChannels()
     }
 
     /**
-     * Вызывается когда приходит FCM сообщение
-     * ТОЛЬКО когда приложение в background/terminated!
+     * ⭐⭐⭐ КРИТИЧНО: Вызывается когда приходит FCM сообщение
+     * Работает ВСЕГДА: foreground, background, terminated!
      */
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         Log.d(TAG, "========================================")
-        Log.d(TAG, "📩 Получено уведомление от: ${remoteMessage.from}")
+        Log.d(TAG, "📩 📩 📩 FCM MESSAGE RECEIVED! 📩 📩 📩")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "От: ${remoteMessage.from}")
+        Log.d(TAG, "Message ID: ${remoteMessage.messageId}")
         Log.d(TAG, "========================================")
 
         // Получаем данные
@@ -40,16 +42,40 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         val type = data["type"]
 
         Log.d(TAG, "📦 Тип уведомления: $type")
-        Log.d(TAG, "📦 Данные: $data")
+        Log.d(TAG, "📦 Все данные:")
+        data.forEach { (key, value) ->
+            Log.d(TAG, "  - $key: $value")
+        }
+        Log.d(TAG, "========================================")
 
         when (type) {
             "incoming_call" -> {
-                val callId = data["callId"] ?: return
-                val callerName = data["callerName"] ?: "Unknown"
-                val callType = data["callType"] ?: "audio"
+                Log.d(TAG, "📞📞📞 ВХОДЯЩИЙ ЗВОНОК ОБНАРУЖЕН!")
                 
-                Log.d(TAG, "📞 Входящий звонок от $callerName (тип: $callType)")
-                showCallNotification(callId, callerName, callType)
+                val callId = data["callId"] ?: data["call_id"] ?: run {
+                    Log.e(TAG, "❌ ОШИБКА: callId отсутствует!")
+                    return
+                }
+                
+                val callerName = data["callerName"] ?: data["caller_name"] ?: "Unknown"
+                val callType = data["callType"] ?: data["call_type"] ?: "audio"
+                
+                Log.d(TAG, "========================================")
+                Log.d(TAG, "📋 Параметры звонка:")
+                Log.d(TAG, "  - callId: $callId")
+                Log.d(TAG, "  - callerName: $callerName")
+                Log.d(TAG, "  - callType: $callType")
+                Log.d(TAG, "========================================")
+                
+                // ⭐⭐⭐ ЗАПУСКАЕМ CallService НАПРЯМУЮ!
+                Log.d(TAG, "🚀🚀🚀 ЗАПУСКАЕМ CallService...")
+                try {
+                    CallService.startService(this, callId, callerName, callType)
+                    Log.d(TAG, "✅ CallService.startService() вызван успешно!")
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Ошибка запуска CallService: ${e.message}")
+                    e.printStackTrace()
+                }
             }
             
             "new_message" -> {
@@ -58,131 +84,23 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 val messageText = data["messageText"] ?: ""
                 
                 Log.d(TAG, "💬 Новое сообщение от $senderName")
-                showMessageNotification(chatId, senderName, messageText)
+                // Здесь можно показать обычное уведомление
             }
             
             "call_ended" -> {
                 val callId = data["callId"] ?: return
                 Log.d(TAG, "📵 Звонок завершен: $callId")
-                cancelNotification(callId.hashCode())
+                // Отменяем уведомление если есть
+            }
+            
+            else -> {
+                Log.d(TAG, "❓ Неизвестный тип сообщения: $type")
             }
         }
-    }
-
-    /**
-     * Показать уведомление о входящем звонке
-     */
-    private fun showCallNotification(callId: String, callerName: String, callType: String) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         
-        // Intent для открытия приложения
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("type", "incoming_call")
-            putExtra("callId", callId)
-            putExtra("callerName", callerName)
-            putExtra("callType", callType)
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            callId.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // Intent для принятия звонка
-        val acceptIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("type", "incoming_call")
-            putExtra("callId", callId)
-            putExtra("callerName", callerName)
-            putExtra("callType", callType)
-            putExtra("action", "accept")
-        }
-        
-        val acceptPendingIntent = PendingIntent.getActivity(
-            this,
-            (callId.hashCode() + 1),
-            acceptIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        // Intent для отклонения звонка
-        val declineIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("type", "incoming_call")
-            putExtra("callId", callId)
-            putExtra("action", "decline")
-        }
-        
-        val declinePendingIntent = PendingIntent.getActivity(
-            this,
-            (callId.hashCode() + 2),
-            declineIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val isVideo = callType == "video"
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-        
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_CALLS)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("📞 ${if (isVideo) "Видеозвонок" else "Звонок"} от $callerName")
-            .setContentText("Входящий ${if (isVideo) "видео" else "аудио"}звонок")
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setOngoing(true)
-            .setAutoCancel(false)
-            .setSound(soundUri)
-            .setVibrate(longArrayOf(0, 1000, 500, 1000))
-            .setFullScreenIntent(pendingIntent, true)
-            .setContentIntent(pendingIntent)
-            .addAction(R.mipmap.ic_launcher, "❌ Отклонить", declinePendingIntent)
-            .addAction(R.mipmap.ic_launcher, "✅ Принять", acceptPendingIntent)
-            .build()
-        
-        notificationManager.notify(callId.hashCode(), notification)
-        Log.d(TAG, "✅ Уведомление о звонке показано")
-    }
-
-    /**
-     * Показать уведомление о сообщении
-     */
-    private fun showMessageNotification(chatId: String, senderName: String, messageText: String) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("type", "new_message")
-            putExtra("chatId", chatId)
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            chatId.hashCode(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID_MESSAGES)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("💬 $senderName")
-            .setContentText(messageText)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-        
-        notificationManager.notify(chatId.hashCode(), notification)
-    }
-
-    /**
-     * Отменить уведомление
-     */
-    private fun cancelNotification(notificationId: Int) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(notificationId)
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "✅ onMessageReceived завершен")
+        Log.d(TAG, "========================================")
     }
 
     /**
@@ -198,10 +116,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 description = "Уведомления о входящих звонках"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 1000, 500, 1000)
-                setSound(
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-                    null
-                )
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             
             val messageChannel = NotificationChannel(
@@ -221,7 +136,10 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "🔄 Новый FCM токен: $token")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🔄 Новый FCM токен получен!")
+        Log.d(TAG, "Token: ${token.take(50)}...")
+        Log.d(TAG, "========================================")
         // TODO: Отправить новый токен на сервер
     }
 }

@@ -3,12 +3,12 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     
-    <!-- Разрешения для камеры и микрофона (для видео/аудио звонков) -->
+    <!-- Разрешения для камеры и микрофона -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     
-    <!-- Разрешения для работы с файлами -->
+    <!-- Разрешения для файлов -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
@@ -21,8 +21,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     
+    <!-- Разрешения для lockscreen -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
+    <uses-permission android:name="android.permission.SHOW_WHEN_LOCKED"/>
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON"/>
+    
     <!-- Разрешения для фоновой работы -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     
     <!-- Особенности устройства -->
@@ -58,13 +65,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Deep linking для уведомлений -->
             <intent-filter>
                 <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
-        <!-- CallActivity для полноэкранных звонков -->
+        
+        <!-- CallActivity -->
         <activity
             android:name=".CallActivity"
             android:exported="false"
@@ -72,23 +79,41 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:excludeFromRecents="true"
-            android:launchMode="singleTask" />
+            android:launchMode="singleInstance"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize" />
+        
+        <!-- ⭐⭐⭐ КРИТИЧНО: FCM Service с ВЫСОКИМ приоритетом -->
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter android:priority="999">
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        
+        <!-- CallService -->
+        <service
+            android:name=".CallService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+        
         <!-- Метаданные Flutter -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
         
-        <!-- Канал уведомлений по умолчанию -->
+        <!-- FCM метаданные -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="calls_channel" />
         
-        <!-- Иконка уведомления -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />
         
-        <!-- Цвет уведомления -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />

@@ -44,13 +44,17 @@ class WebSocketManager {
 
   void _log(String message) {
     if (kDebugMode) {
-      print('[WS Manager] $message');
+      print('[WS] $message');
     }
   }
 
   Future<void> connect({String? token, String? userId}) async {
     if (_channel != null && _channel!.closeCode == null) {
+      _log('========================================');
       _log('Соединение уже существует и активно');
+      _log('_isAuthenticated: $_isAuthenticated');
+      _log('========================================');
+
       if (!_isAuthenticated && _token != null) {
         _log('Отправляем повторную авторизацию');
         await _authenticate();
@@ -59,7 +63,9 @@ class WebSocketManager {
     }
 
     if (_isConnecting) {
-      _log('Уже идет процесс подключения, ждем...');
+      _log('========================================');
+      _log('⏳ Уже идет процесс подключения, ждем...');
+      _log('========================================');
       return;
     }
 
@@ -69,7 +75,9 @@ class WebSocketManager {
     _userId = userId ?? _userId;
 
     if (_token == null) {
-      _log('Нет токена для подключения');
+      _log('========================================');
+      _log('❌ Нет токена для подключения');
+      _log('========================================');
       _isConnecting = false;
       _statusController.add(ConnectionStatus.error);
       return;
@@ -78,14 +86,19 @@ class WebSocketManager {
     try {
       _statusController.add(ConnectionStatus.connecting);
       _log('========================================');
-      _log('Создаем НОВОЕ WebSocket соединение...');
       _log('========================================');
+      _log('🔌 СОЗДАЕМ НОВОЕ WEBSOCKET СОЕДИНЕНИЕ');
+      _log('========================================');
+      _log('Token: ${_token!.substring(0, 20)}...');
+      _log('UserId: $_userId');
 
       if (_channel != null) {
         try {
+          _log('Закрываем старый канал...');
           _channel!.sink.close();
+          _log('✅ Старый канал закрыт');
         } catch (e) {
-          _log('Ошибка закрытия старого канала: $e');
+          _log('⚠️ Ошибка закрытия старого канала: $e');
         }
         _channel = null;
       }
@@ -93,34 +106,50 @@ class WebSocketManager {
       _connectionTimeoutTimer?.cancel();
       _connectionTimeoutTimer = Timer(_connectionTimeout, () {
         if (!isConnected) {
-          _log('Таймаут подключения');
+          _log('========================================');
+          _log('❌ ТАЙМАУТ ПОДКЛЮЧЕНИЯ (10 секунд)');
+          _log('========================================');
           _handleConnectionError('Connection timeout');
         }
       });
 
       final wsUrl = _getWebSocketUrl();
       _log('WebSocket URL: $wsUrl');
+      _log('========================================');
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _log('✅ WebSocket канал создан');
 
       _subscription?.cancel();
       _subscription = _channel!.stream.listen(
         (message) {
+          _log('========================================');
+          _log('📨 RAW MESSAGE RECEIVED');
+          _log('Length: ${message.toString().length} bytes');
+          _log('========================================');
           _handleMessage(message);
         },
         onError: (error) {
-          _log('Ошибка WebSocket: $error');
+          _log('========================================');
+          _log('❌ WEBSOCKET ERROR');
+          _log('Error: $error');
+          _log('========================================');
           _handleConnectionError(error.toString());
         },
         onDone: () {
-          _log('WebSocket соединение закрыто');
+          _log('========================================');
+          _log('🔴 WEBSOCKET CONNECTION CLOSED');
+          _log('========================================');
           _handleDisconnection();
         },
       );
 
       await Future.delayed(Duration(milliseconds: 100));
 
-      _log('Отправляем авторизацию...');
+      _log('========================================');
+      _log('📤 ОТПРАВКА АВТОРИЗАЦИИ');
+      _log('========================================');
+
       final authMessage = {
         'type': 'auth',
         'token': _token!.replaceAll('"', ''),
@@ -128,9 +157,17 @@ class WebSocketManager {
       };
 
       _channel!.sink.add(json.encode(authMessage));
-      _log('Авторизация отправлена, ждем подтверждения...');
-    } catch (e) {
-      _log('Ошибка подключения: $e');
+
+      _log('========================================');
+      _log('✅ АВТОРИЗАЦИЯ ОТПРАВЛЕНА');
+      _log('⏳ Ждем подтверждения...');
+      _log('========================================');
+    } catch (e, stackTrace) {
+      _log('========================================');
+      _log('❌ ОШИБКА ПОДКЛЮЧЕНИЯ');
+      _log('Error: $e');
+      _log('Stack: $stackTrace');
+      _log('========================================');
       _isConnecting = false;
       _handleConnectionError(e.toString());
     }
@@ -139,11 +176,13 @@ class WebSocketManager {
   String _getWebSocketUrl() {
     if (kIsWeb) {
       final wsUrl = ApiService.wsUrl;
-      _log('Web WebSocket URL: $wsUrl');
+      _log('Platform: WEB');
+      _log('WebSocket URL: $wsUrl');
       return wsUrl;
     } else {
       const wsUrl = 'wss://securewave.sbk-19.ru/ws';
-      _log('Mobile WebSocket URL: $wsUrl');
+      _log('Platform: MOBILE');
+      _log('WebSocket URL: $wsUrl');
       return wsUrl;
     }
   }
@@ -158,11 +197,13 @@ class WebSocketManager {
     };
 
     send(authMessage);
-    _log('Отправлена авторизация');
+    _log('🔐 Повторная авторизация отправлена');
 
     Timer(Duration(seconds: 5), () {
       if (!_isAuthenticated && _isConnecting) {
-        _log('Таймаут авторизации');
+        _log('========================================');
+        _log('❌ ТАЙМАУТ АВТОРИЗАЦИИ (5 секунд)');
+        _log('========================================');
         _handleConnectionError('Authentication timeout');
       }
     });
@@ -171,9 +212,12 @@ class WebSocketManager {
   void _handleMessage(dynamic message) {
     try {
       final data = json.decode(message.toString());
-      _log('📨 Получено сообщение типа: ${data['type']}');
+      final msgType = data['type'];
 
-      switch (data['type']) {
+      _log('✅ JSON PARSED');
+      _log('Type: $msgType');
+
+      switch (msgType) {
         case 'auth_success':
         case 'авторизация_успешна':
           _handleAuthSuccess(data);
@@ -272,10 +316,27 @@ class WebSocketManager {
         // === ОБРАБОТКА ЗВОНКОВ ===
         case 'call_offer':
           _log('========================================');
-          _log('📞 ВХОДЯЩИЙ ЗВОНОК!');
-          _log('От: ${data['callerName']}');
+          _log('========================================');
+          _log('🔥🔥🔥 CALL_OFFER ПОЛУЧЕН ЧЕРЕЗ WEBSOCKET!');
+          _log('========================================');
           _log('callId: ${data['callId']}');
+          _log('chatId: ${data['chatId']}');
+          _log('callerId: ${data['callerId']}');
+          _log('callerName: ${data['callerName']}');
           _log('callType: ${data['callType']}');
+          _log('offer exists: ${data['offer'] != null}');
+
+          if (data['offer'] != null) {
+            final offer = data['offer'] as Map<String, dynamic>;
+            _log('offer.sdp exists: ${offer['sdp'] != null}');
+            _log('offer.type: ${offer['type']}');
+            if (offer['sdp'] != null) {
+              _log('offer.sdp size: ${offer['sdp'].toString().length} bytes');
+            }
+          }
+
+          _log('========================================');
+          _log('📤 ПЕРЕДАЕМ В MESSAGE CONTROLLER');
           _log('========================================');
 
           _messageController.add({
@@ -288,6 +349,10 @@ class WebSocketManager {
             'callType': data['callType'],
             'offer': data['offer'],
           });
+
+          _log('========================================');
+          _log('✅✅✅ CALL_OFFER ДОБАВЛЕН В MESSAGE CONTROLLER!');
+          _log('========================================');
           break;
 
         case 'call_answer':
@@ -340,7 +405,6 @@ class WebSocketManager {
 
         case 'call_offer_sent':
           _log('📞 Подтверждение: offer отправлен на сервер');
-          // НЕ добавляем в messageController, это служебное сообщение
           break;
 
         case 'ping':
@@ -348,20 +412,26 @@ class WebSocketManager {
           break;
 
         case 'pong':
-          _log('Получен pong');
+          _log('✅ Pong received');
           break;
 
         case 'error':
-          _log('Ошибка от сервера: ${data['message']}');
+          _log('❌ Ошибка от сервера: ${data['message']}');
           break;
 
         default:
-          _log('⚠️ Неизвестный тип сообщения: ${data['type']}');
-          _log('Данные: ${json.encode(data)}');
+          _log('========================================');
+          _log('⚠️ НЕИЗВЕСТНЫЙ ТИП СООБЩЕНИЯ: $msgType');
+          _log('Data: ${json.encode(data)}');
+          _log('========================================');
       }
-    } catch (e) {
-      _log('❌ Ошибка обработки сообщения: $e');
-      _log('Сообщение: $message');
+    } catch (e, stackTrace) {
+      _log('========================================');
+      _log('❌ ОШИБКА ОБРАБОТКИ СООБЩЕНИЯ');
+      _log('Error: $e');
+      _log('Stack: $stackTrace');
+      _log('Message: $message');
+      _log('========================================');
     }
   }
 
@@ -373,8 +443,12 @@ class WebSocketManager {
     _reconnectAttempts = 0;
 
     _log('========================================');
-    _log('✅ Авторизация успешна');
+    _log('========================================');
+    _log('✅✅✅ АВТОРИЗАЦИЯ УСПЕШНА!');
+    _log('========================================');
     _log('User ID: $_userId');
+    _log('Connection Status: CONNECTED');
+    _log('========================================');
     _log('========================================');
 
     _statusController.add(ConnectionStatus.connected);
@@ -389,7 +463,11 @@ class WebSocketManager {
   }
 
   void _handleAuthError(Map<String, dynamic> data) {
-    _log('❌ Ошибка авторизации: ${data['error']}');
+    _log('========================================');
+    _log('❌ ОШИБКА АВТОРИЗАЦИИ');
+    _log('Error: ${data['error']}');
+    _log('========================================');
+
     _isAuthenticated = false;
     _isConnecting = false;
     _connectionTimeoutTimer?.cancel();
@@ -404,7 +482,10 @@ class WebSocketManager {
   }
 
   void _handleConnectionError(String error) {
-    _log('❌ Ошибка соединения: $error');
+    _log('========================================');
+    _log('❌ ОШИБКА СОЕДИНЕНИЯ: $error');
+    _log('========================================');
+
     _isConnecting = false;
     _isAuthenticated = false;
     _connectionTimeoutTimer?.cancel();
@@ -413,7 +494,10 @@ class WebSocketManager {
   }
 
   void _handleDisconnection() {
-    _log('🔌 Отключение');
+    _log('========================================');
+    _log('🔌 ОТКЛЮЧЕНИЕ');
+    _log('========================================');
+
     _isConnecting = false;
     _isAuthenticated = false;
     _connectionTimeoutTimer?.cancel();
@@ -424,20 +508,20 @@ class WebSocketManager {
   void send(Map<String, dynamic> data) {
     if (_channel == null) {
       _log(
-          'WebSocket канал не существует, добавляем в очередь: ${data['type']}');
+          '⚠️ WebSocket канал не существует, добавляем в очередь: ${data['type']}');
       _messageQueue.add(data);
       return;
     }
 
     if (_channel!.closeCode != null) {
       _log(
-          'WebSocket канал закрыт (код: ${_channel!.closeCode}), добавляем в очередь: ${data['type']}');
+          '⚠️ WebSocket канал закрыт (код: ${_channel!.closeCode}), добавляем в очередь: ${data['type']}');
       _messageQueue.add(data);
       return;
     }
 
     if (data['type'] != 'auth' && data['type'] != 'ping' && !_isAuthenticated) {
-      _log('Не авторизован, добавляем в очередь: ${data['type']}');
+      _log('⚠️ Не авторизован, добавляем в очередь: ${data['type']}');
       _messageQueue.add(data);
       return;
     }
@@ -460,7 +544,10 @@ class WebSocketManager {
   void _sendQueuedMessages() {
     if (_messageQueue.isEmpty) return;
 
-    _log('📤 Отправка ${_messageQueue.length} сообщений из очереди');
+    _log('========================================');
+    _log('📤 ОТПРАВКА ${_messageQueue.length} СООБЩЕНИЙ ИЗ ОЧЕРЕДИ');
+    _log('========================================');
+
     final queue = List<Map<String, dynamic>>.from(_messageQueue);
     _messageQueue.clear();
 
@@ -611,7 +698,9 @@ class WebSocketManager {
     if (_reconnectTimer != null ||
         _reconnectAttempts >= _maxReconnectAttempts) {
       if (_reconnectAttempts >= _maxReconnectAttempts) {
-        _log('⛔ Достигнуто максимальное число попыток переподключения');
+        _log('========================================');
+        _log('⛔ ДОСТИГНУТО МАКСИМАЛЬНОЕ ЧИСЛО ПОПЫТОК ПЕРЕПОДКЛЮЧЕНИЯ');
+        _log('========================================');
       }
       return;
     }
@@ -619,8 +708,10 @@ class WebSocketManager {
     _reconnectAttempts++;
     final delay = Duration(seconds: _reconnectAttempts * 2);
 
-    _log(
-        '🔄 Переподключение через ${delay.inSeconds} сек (попытка $_reconnectAttempts/$_maxReconnectAttempts)');
+    _log('========================================');
+    _log('🔄 ПЕРЕПОДКЛЮЧЕНИЕ ЧЕРЕЗ ${delay.inSeconds} СЕК');
+    _log('Попытка: $_reconnectAttempts/$_maxReconnectAttempts');
+    _log('========================================');
 
     _reconnectTimer = Timer(delay, () {
       _reconnectTimer = null;
@@ -631,7 +722,9 @@ class WebSocketManager {
   }
 
   void disconnect() {
-    _log('🔌 Отключение от WebSocket');
+    _log('========================================');
+    _log('🔌 ОТКЛЮЧЕНИЕ ОТ WEBSOCKET');
+    _log('========================================');
 
     _pingTimer?.cancel();
     _reconnectTimer?.cancel();
@@ -641,7 +734,7 @@ class WebSocketManager {
     try {
       _channel?.sink.close(status.normalClosure);
     } catch (e) {
-      _log('Ошибка при закрытии канала: $e');
+      _log('⚠️ Ошибка при закрытии канала: $e');
     }
 
     _channel = null;
@@ -651,10 +744,17 @@ class WebSocketManager {
     _messageQueue.clear();
 
     _statusController.add(ConnectionStatus.disconnected);
+
+    _log('========================================');
+    _log('✅ WEBSOCKET ОТКЛЮЧЕН');
+    _log('========================================');
   }
 
   void reconnect() {
-    _log('🔄 Принудительное переподключение');
+    _log('========================================');
+    _log('🔄 ПРИНУДИТЕЛЬНОЕ ПЕРЕПОДКЛЮЧЕНИЕ');
+    _log('========================================');
+
     disconnect();
     if (_token != null) {
       connect(token: _token, userId: _userId);
@@ -662,7 +762,10 @@ class WebSocketManager {
   }
 
   void dispose() {
-    _log('🗑️ Dispose WebSocketManager');
+    _log('========================================');
+    _log('🗑️ DISPOSE WEBSOCKETMANAGER');
+    _log('========================================');
+
     disconnect();
     _statusController.close();
     _messageController.close();

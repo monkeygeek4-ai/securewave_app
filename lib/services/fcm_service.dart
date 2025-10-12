@@ -14,7 +14,7 @@ class FCMService {
 
   FCMService._internal();
 
-  static const platform = MethodChannel('com.securewave.app/fcm');
+  static const platform = MethodChannel('com.securewave.app/call');
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   FlutterLocalNotificationsPlugin? _localNotifications;
@@ -41,6 +41,9 @@ class FCMService {
     print('[FCM] ✅ FCM Service полностью инициализирован');
     print('[FCM] ========================================');
   }
+
+  // ⭐ УБРАЛИ автоматический запрос overlay permission
+  // Пользователь должен настроить вручную в настройках MIUI
 
   Future<void> _initializeLocalNotifications() async {
     print('[FCM] 📱 Инициализация локальных уведомлений...');
@@ -75,10 +78,11 @@ class FCMService {
     print('[FCM] 📢 Создание notification channels...');
 
     try {
+      // ⭐⭐⭐ FULL-SCREEN канал для звонков
       const callsChannel = AndroidNotificationChannel(
         'calls_channel',
         'Incoming Calls',
-        description: 'Notifications for incoming calls',
+        description: 'Full-screen notifications for incoming calls',
         importance: Importance.max,
         playSound: true,
         enableVibration: true,
@@ -156,11 +160,13 @@ class FCMService {
 
           if (actionId == 'accept') {
             print('[FCM] ✅ Принятие звонка через уведомление');
+            _showCallScreen(callId, callerName, 'audio');
           } else if (actionId == 'decline') {
             print('[FCM] ❌ Отклонение звонка через уведомление');
             cancelCallNotification(callId);
           } else {
             print('[FCM] 📱 Открытие приложения для звонка');
+            _showCallScreen(callId, callerName, 'audio');
           }
         }
         break;
@@ -174,6 +180,21 @@ class FCMService {
 
       default:
         print('[FCM] ❓ Неизвестный тип: $type');
+    }
+  }
+
+  Future<void> _showCallScreen(
+      String callId, String callerName, String callType) async {
+    try {
+      print('[FCM] 🚀 Вызов нативного метода showCallScreen');
+      await platform.invokeMethod('showCallScreen', {
+        'callId': callId,
+        'callerName': callerName,
+        'callType': callType,
+      });
+      print('[FCM] ✅ CallScreen показан');
+    } catch (e) {
+      print('[FCM] ❌ Ошибка показа CallScreen: $e');
     }
   }
 
@@ -218,15 +239,6 @@ class FCMService {
 
       String? token = await _firebaseMessaging.getToken();
 
-      if (token == null && !kIsWeb && Platform.isAndroid) {
-        print('[FCM] 🔄 Пробуем получить токен из SharedPreferences...');
-        try {
-          token = await platform.invokeMethod('getFCMToken');
-        } catch (e) {
-          print('[FCM] ⚠️ Ошибка получения токена из SharedPreferences: $e');
-        }
-      }
-
       if (token != null) {
         _fcmToken = token;
         print('[FCM] ✅ FCM токен: ${token.substring(0, 30)}...');
@@ -269,25 +281,17 @@ class FCMService {
       _registerTokenOnBackend(newToken);
     });
 
-    // ⭐ ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ FOREGROUND MESSAGES
+    // ⭐ FOREGROUND MESSAGES
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('[FCM] ========================================');
       print('[FCM] 📩 📩 📩 FOREGROUND MESSAGE ПОЛУЧЕНО! 📩 📩 📩');
       print('[FCM] ========================================');
       print('[FCM] Message ID: ${message.messageId}');
-      print('[FCM] Sent Time: ${message.sentTime}');
-      print('[FCM] ========================================');
-      print('[FCM] 📦 NOTIFICATION:');
-      print('[FCM]   - Title: ${message.notification?.title}');
-      print('[FCM]   - Body: ${message.notification?.body}');
-      print('[FCM]   - Android: ${message.notification?.android}');
       print('[FCM] ========================================');
       print('[FCM] 📦 DATA PAYLOAD:');
       message.data.forEach((key, value) {
         print('[FCM]   - $key: $value');
       });
-      print('[FCM] ========================================');
-      print('[FCM] 📦 DATA как JSON: ${message.data}');
       print('[FCM] ========================================');
 
       _handleForegroundMessage(message);
@@ -300,15 +304,6 @@ class FCMService {
       print('[FCM] ========================================');
 
       _handleNotificationClick(message.data);
-    });
-
-    platform.setMethodCallHandler((call) async {
-      if (call.method == 'onNotificationClick') {
-        final data = Map<String, dynamic>.from(call.arguments);
-        print('[FCM] 🖱️ Клик по уведомлению (нативное событие)');
-        print('[FCM] 📦 Данные: $data');
-        _handleNotificationClick(data);
-      }
     });
 
     _checkInitialMessage();
@@ -340,32 +335,33 @@ class FCMService {
     print('[FCM] ========================================');
     print('[FCM] 🔍 ОБРАБОТКА FOREGROUND СООБЩЕНИЯ');
     print('[FCM] Тип: $type');
-    print('[FCM] Данные: $data');
-    print('[FCM] Callback установлен: ${onIncomingCall != null}');
     print('[FCM] ========================================');
 
     switch (type) {
       case 'incoming_call':
-        print('[FCM] 📞 📞 📞 ВХОДЯЩИЙ ЗВОНОК ОБНАРУЖЕН! 📞 📞 📞');
+        print('[FCM] 📞📞📞 ВХОДЯЩИЙ ЗВОНОК - ЗАПУСКАЕМ CallActivity!');
 
+        final callId = data['callId'] ?? data['call_id'];
+        final callerName =
+            data['callerName'] ?? data['caller_name'] ?? 'Unknown';
+        final callType = data['callType'] ?? data['call_type'] ?? 'audio';
+
+        print('[FCM] Call ID: $callId');
+        print('[FCM] Caller: $callerName');
+        print('[FCM] Type: $callType');
+
+        // ⭐⭐⭐ ЗАПУСКАЕМ CallActivity НАПРЯМУЮ
+        _showCallScreen(callId, callerName, callType);
+
+        // Также вызываем callback если установлен
         if (onIncomingCall != null) {
           final normalizedData = {
-            'callId': data['callId'] ?? data['call_id'],
-            'callerName': data['callerName'] ?? data['caller_name'],
-            'callType': data['callType'] ?? data['call_type'],
+            'callId': callId,
+            'callerName': callerName,
+            'callType': callType,
             'callerAvatar': data['callerAvatar'] ?? data['caller_avatar'],
           };
-
-          print('[FCM] ✅ Вызов callback с данными:');
-          normalizedData.forEach((key, value) {
-            print('[FCM]   - $key: $value');
-          });
-
           onIncomingCall!(normalizedData);
-        } else {
-          print('[FCM] ⚠️⚠️⚠️ CALLBACK НЕ УСТАНОВЛЕН! ⚠️⚠️⚠️');
-          print('[FCM] Показываем fallback уведомление...');
-          _showFullScreenCallNotification(data);
         }
         break;
 
@@ -375,7 +371,7 @@ class FCMService {
         break;
 
       case 'call_ended':
-        print('[FCM] 📵 Звонок завершен - отменяем уведомление');
+        print('[FCM] 📵 Звонок завершен');
         final callId = data['callId'] ?? data['call_id'];
         if (callId != null) {
           cancelCallNotification(callId);
@@ -384,8 +380,6 @@ class FCMService {
 
       default:
         print('[FCM] ❓ Неизвестный тип: $type');
-        print('[FCM] Возможно это data-only сообщение?');
-        print('[FCM] Все ключи в data: ${data.keys.toList()}');
     }
   }
 
@@ -403,7 +397,7 @@ class FCMService {
     try {
       final callId = data['callId'] ?? data['call_id'] ?? 'unknown';
       final callerName = data['callerName'] ?? data['caller_name'] ?? 'Unknown';
-      final callType = data['callType'] ?? data['call_type'] ?? 'video';
+      final callType = data['callType'] ?? data['call_type'] ?? 'audio';
 
       print('[FCM] Call ID: $callId');
       print('[FCM] Caller: $callerName');
@@ -412,11 +406,12 @@ class FCMService {
       final androidDetails = AndroidNotificationDetails(
         'calls_channel',
         'Incoming Calls',
-        channelDescription: 'Notifications for incoming calls',
+        channelDescription: 'Full-screen notifications for incoming calls',
         importance: Importance.max,
         priority: Priority.high,
         ticker: 'Incoming Call',
         playSound: true,
+        sound: const RawResourceAndroidNotificationSound('ringtone'),
         enableVibration: true,
         vibrationPattern: Int64List.fromList([0, 1000, 500, 1000]),
         fullScreenIntent: true,
@@ -424,20 +419,21 @@ class FCMService {
         visibility: NotificationVisibility.public,
         ongoing: true,
         autoCancel: false,
-        styleInformation: const BigTextStyleInformation(
+        styleInformation: BigTextStyleInformation(
           'Tap to answer the call',
-          contentTitle: '📞 Incoming Call',
+          contentTitle:
+              '📞 ${callType == "video" ? "Видеозвонок" : "Звонок"} от $callerName',
         ),
-        actions: const <AndroidNotificationAction>[
-          AndroidNotificationAction(
+        actions: <AndroidNotificationAction>[
+          const AndroidNotificationAction(
             'decline',
-            '❌ Decline',
+            '❌ Отклонить',
             showsUserInterface: false,
             cancelNotification: true,
           ),
-          AndroidNotificationAction(
+          const AndroidNotificationAction(
             'accept',
-            '✅ Accept',
+            '✅ Принять',
             showsUserInterface: true,
             cancelNotification: true,
           ),
@@ -448,16 +444,17 @@ class FCMService {
 
       await _localNotifications!.show(
         callId.hashCode,
-        '📞 Incoming Call',
-        'From: $callerName',
+        '📞 ${callType == "video" ? "Видеозвонок" : "Звонок"}',
+        'От: $callerName',
         notificationDetails,
-        payload: 'call:$callId:$callerName',
+        payload: 'call:$callId:$callerName:$callType',
       );
 
       print('[FCM] ✅ Full-screen notification показан');
       print('[FCM] ========================================');
     } catch (e) {
       print('[FCM] ❌ Ошибка показа уведомления о звонке: $e');
+      print('[FCM] Stack trace: $e');
     }
   }
 

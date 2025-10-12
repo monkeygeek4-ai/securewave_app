@@ -1,112 +1,97 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#1E1E1E"
-    android:padding="24dp">
+    android:background="#000000"
+    android:padding="20dp">
 
-    <!-- Аватар звонящего -->
-    <ImageView
-        android:id="@+id/callerAvatar"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="80dp"
-        android:background="@drawable/circle_background"
-        android:padding="8dp"
-        android:src="@android:drawable/ic_menu_camera"
-        android:tint="#FFFFFF" />
-
-    <!-- Имя звонящего -->
-    <TextView
-        android:id="@+id/callerName"
-        android:layout_width="wrap_content"
+    <!-- Верхняя часть - информация о звонящем -->
+    <LinearLayout
+        android:id="@+id/topSection"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@id/callerAvatar"
         android:layout_centerHorizontal="true"
-        android:layout_marginTop="24dp"
-        android:text="Unknown Caller"
-        android:textColor="#FFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold" />
+        android:layout_marginTop="100dp"
+        android:orientation="vertical"
+        android:gravity="center">
 
-    <!-- Тип звонка -->
-    <TextView
-        android:id="@+id/callType"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_below="@id/callerName"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="8dp"
-        android:text="Incoming call..."
-        android:textColor="#AAAAAA"
-        android:textSize="16sp" />
+        <!-- Аватар -->
+        <ImageView
+            android:id="@+id/callerAvatar"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:src="@mipmap/ic_launcher"
+            android:scaleType="centerCrop" />
 
-    <!-- Контейнер для кнопок -->
+        <!-- Имя звонящего -->
+        <TextView
+            android:id="@+id/callerName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="Unknown Caller"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <!-- Тип звонка -->
+        <TextView
+            android:id="@+id/callType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="📞 Аудиозвонок"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp" />
+
+        <!-- Статус -->
+        <TextView
+            android:id="@+id/callStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Входящий звонок..."
+            android:textColor="#AAAAAA"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+    <!-- Нижняя часть - кнопки -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="60dp"
-        android:gravity="center"
         android:orientation="horizontal"
-        android:weightSum="2">
+        android:gravity="center"
+        android:paddingStart="40dp"
+        android:paddingEnd="40dp">
 
         <!-- Кнопка отклонить -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
-
-            <Button
-                android:id="@+id/declineButton"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="@drawable/circle_button_decline"
-                android:drawableTop="@drawable/ic_call_end_white"
-                android:padding="0dp"
-                android:text=""
-                android:textColor="#FFFFFF" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Decline"
-                android:textColor="#F44336"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+        <Button
+            android:id="@+id/declineButton"
+            android:layout_width="150dp"
+            android:layout_height="70dp"
+            android:layout_marginEnd="20dp"
+            android:text="❌ Отклонить"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#D32F2F" />
 
         <!-- Кнопка принять -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
+        <Button
+            android:id="@+id/acceptButton"
+            android:layout_width="150dp"
+            android:layout_height="70dp"
+            android:layout_marginStart="20dp"
+            android:text="✅ Принять"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#388E3C" />
 
-            <Button
-                android:id="@+id/acceptButton"
-                android:layout_width="80dp"
-                android:layout_height="80dp"
-                android:background="@drawable/circle_button_accept"
-                android:drawableTop="@drawable/ic_call_white"
-                android:padding="0dp"
-                android:text=""
-                android:textColor="#FFFFFF" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Accept"
-                android:textColor="#4CAF50"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
     </LinearLayout>
 
 </RelativeLayout>

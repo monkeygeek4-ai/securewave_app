@@ -1,15 +1,13 @@
 // lib/main.dart
-// ПОЛНАЯ ВЕРСИЯ с background handler для FCM уведомлений + CallActivity
+// ⭐⭐⭐ ИСПРАВЛЕНО: Правильная обработка accept/decline через MethodChannel
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // Для MethodChannel
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
@@ -21,140 +19,36 @@ import 'screens/home_screen.dart';
 import 'screens/call_screen.dart';
 import 'services/webrtc_service.dart';
 import 'services/fcm_service.dart';
-import 'services/api_service.dart';
 import 'models/call.dart';
 import 'widgets/incoming_call_overlay.dart';
 
-// ⭐⭐⭐ BACKGROUND MESSAGE HANDLER для FCM
-// ВАЖНО: Должен быть TOP-LEVEL функцией (вне классов)
+// GlobalKey для навигации из нативного кода
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// УПРОЩЕННЫЙ Background Handler (вся логика в MyFirebaseMessagingService.kt)
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Инициализируем Firebase
+  print('[FCM BG] ========================================');
+  print('[FCM BG] 📩 Background сообщение получено!');
+  print('[FCM BG] Message ID: ${message.messageId}');
+  print('[FCM BG] Type: ${message.data['type']}');
+  print('[FCM BG] ℹ️ Обработка происходит в MyFirebaseMessagingService.kt');
+  print('[FCM BG] ========================================');
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  print('[FCM Background] ========================================');
-  print('[FCM Background] 📩 Получено background сообщение');
-  print('[FCM Background] Message ID: ${message.messageId}');
-  print('[FCM Background] Data: ${message.data}');
-  print('[FCM Background] ========================================');
-
-  final data = message.data;
-  final type = data['type'];
-
-  if (type == 'incoming_call') {
-    print('[FCM Background] 📞 Входящий звонок в background!');
-
-    final callId = data['callId'] ?? 'unknown';
-    final callerName = data['callerName'] ?? 'Unknown';
-    final callType = data['callType'] ?? 'audio';
-
-    print('[FCM Background] Caller: $callerName');
-    print('[FCM Background] CallType: $callType');
-    print('[FCM Background] Запуск CallActivity...');
-
-    // ⭐ Вместо показа уведомления - запускаем CallActivity через MethodChannel
-    try {
-      const platform = MethodChannel('com.securewave.app/call');
-      await platform.invokeMethod('showCallScreen', {
-        'callId': callId,
-        'callerName': callerName,
-        'callType': callType,
-      });
-      print('[FCM Background] ✅ CallActivity запущена');
-    } catch (e) {
-      print('[FCM Background] ❌ Ошибка запуска CallActivity: $e');
-      print('[FCM Background] Fallback: показываем стандартное уведомление');
-
-      // Fallback: показываем обычное уведомление
-      final FlutterLocalNotificationsPlugin localNotifications =
-          FlutterLocalNotificationsPlugin();
-
-      const AndroidInitializationSettings initializationSettingsAndroid =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-
-      const InitializationSettings initializationSettings =
-          InitializationSettings(android: initializationSettingsAndroid);
-
-      await localNotifications.initialize(initializationSettings);
-
-      const AndroidNotificationChannel channel = AndroidNotificationChannel(
-        'calls_channel',
-        'Incoming Calls',
-        description: 'Notifications for incoming calls',
-        importance: Importance.max,
-        playSound: true,
-        enableVibration: true,
-      );
-
-      await localNotifications
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.createNotificationChannel(channel);
-
-      final AndroidNotificationDetails androidDetails =
-          AndroidNotificationDetails(
-        'calls_channel',
-        'Incoming Calls',
-        channelDescription: 'Notifications for incoming calls',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000]),
-        fullScreenIntent: true,
-        category: AndroidNotificationCategory.call,
-        ongoing: true,
-        autoCancel: false,
-        actions: <AndroidNotificationAction>[
-          AndroidNotificationAction(
-            'decline',
-            '❌ Decline',
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            'accept',
-            '✅ Accept',
-            showsUserInterface: true,
-            cancelNotification: true,
-          ),
-        ],
-      );
-
-      final NotificationDetails notificationDetails =
-          NotificationDetails(android: androidDetails);
-
-      await localNotifications.show(
-        callId.hashCode,
-        '📞 Incoming Call',
-        'From: $callerName',
-        notificationDetails,
-        payload: 'call:$callId:$callerName',
-      );
-
-      print('[FCM Background] ✅ Fallback уведомление показано');
-    }
-  }
-
-  print('[FCM Background] ========================================');
+  print('[FCM BG] ✅ Background handler завершен');
 }
 
-// Проверка инвайт-кода в URL (только для веб)
 String? _checkInviteLink() {
   if (kIsWeb) {
     try {
       final html = Uri.base;
-      print('[Init] Текущий URL: ${html.toString()}');
-      print('[Init] Путь: ${html.path}');
-      print('[Init] Сегменты пути: ${html.pathSegments}');
-
       if (html.pathSegments.isNotEmpty && html.pathSegments.length >= 2) {
         if (html.pathSegments[0] == 'invite') {
-          final inviteCode = html.pathSegments[1];
-          print('[Init] ✅ Обнаружен инвайт-код: $inviteCode');
-          return inviteCode;
+          return html.pathSegments[1];
         }
       }
     } catch (e) {
@@ -166,20 +60,16 @@ String? _checkInviteLink() {
 
 void main() async {
   print('[Main] ========================================');
-  print('[Main] Запуск приложения SecureWave');
+  print('[Main] 🚀 Запуск приложения SecureWave');
   print('[Main] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
   print('[Main] ========================================');
 
-  // Инициализация Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    // Инициализация Firebase
     print('[Main] 🔥 Инициализация Firebase...');
 
     if (kIsWeb) {
-      // Для Web используем конфигурацию напрямую
-      print('[Main] 🌐 Инициализация Firebase для Web...');
       await Firebase.initializeApp(
         options: FirebaseOptions(
           apiKey: 'AIzaSyAW5HurHMo1l9ub2XKyr2nk-yP22bc_6F4',
@@ -192,25 +82,23 @@ void main() async {
       );
       print('[Main] ✅ Firebase инициализирован для Web');
     } else {
-      // Для мобильных платформ используем firebase_options.dart
-      print('[Main] 📱 Инициализация Firebase для Mobile...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
       print('[Main] ✅ Firebase инициализирован для Mobile');
 
-      // ⭐⭐⭐ РЕГИСТРАЦИЯ BACKGROUND HANDLER
       FirebaseMessaging.onBackgroundMessage(
           _firebaseMessagingBackgroundHandler);
       print('[Main] ✅ Background handler зарегистрирован');
-
-      print('[Main] ℹ️ FCM будет инициализирован после авторизации');
+      print('[Main] ℹ️ FCM обрабатывается в MyFirebaseMessagingService.kt');
     }
   } catch (e, stackTrace) {
     print('[Main] ❌ Ошибка инициализации Firebase: $e');
     print('[Main] Stack trace: $stackTrace');
-    // Продолжаем работу даже при ошибке Firebase
   }
+
+  print('[Main] 🏁 Запуск приложения...');
+  print('[Main] ========================================');
 
   runApp(
     MultiProvider(
@@ -243,6 +131,7 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           title: 'SecureWave',
           debugShowCheckedModeBanner: false,
+          navigatorKey: navigatorKey,
           theme: ThemeData(
             primarySwatch: Colors.blue,
             useMaterial3: true,
@@ -266,7 +155,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Виджет инициализации приложения
 class InitializationWrapper extends StatefulWidget {
   const InitializationWrapper({Key? key}) : super(key: key);
 
@@ -287,14 +175,14 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
 
   Future<void> _initialize() async {
     print('[Init] ========================================');
-    print('[Init] Начало инициализации приложения');
+    print('[Init] 🚀 Начало инициализации');
     print('[Init] ========================================');
 
     try {
       _inviteCode = _checkInviteLink();
 
       if (_inviteCode != null) {
-        print('[Init] 🎫 Обнаружен инвайт-код, показываем регистрацию');
+        print('[Init] 🎫 Обнаружен invite code: $_inviteCode');
         setState(() {
           _isInitializing = false;
           _isAuthenticated = false;
@@ -303,86 +191,60 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
       }
 
       final authProvider = context.read<AuthProvider>();
-
-      print('[Init] 🔍 Проверка авторизации...');
       await authProvider.checkAuth();
 
       if (!mounted) return;
 
       if (authProvider.isAuthenticated && authProvider.currentUser != null) {
         print('[Init] ========================================');
-        print('[Init] ✅ Пользователь авторизован');
-        print('[Init] 👤 Username: ${authProvider.currentUser!.username}');
-        print('[Init] 🆔 User ID: ${authProvider.currentUser!.id}');
+        print(
+            '[Init] ✅ Пользователь авторизован: ${authProvider.currentUser!.email}');
         print('[Init] ========================================');
 
-        // Инициализируем FCM для mobile
         if (!kIsWeb) {
-          print('[Init] ========================================');
-          print('[Init] 📱 ИНИЦИАЛИЗАЦИЯ FCM (ПОСЛЕ FIREBASE И AUTH)');
-          print('[Init] ========================================');
-
           try {
-            // Даем Firebase время на полную инициализацию
+            print('[Init] 🔔 Инициализация FCM...');
             await Future.delayed(Duration(milliseconds: 500));
-
-            // Инициализируем FCM
-            print('[Init] 🔥 Вызов FCMService().initialize()...');
             await FCMService().initialize();
-            print('[Init] ✅✅✅ FCM УСПЕШНО ИНИЦИАЛИЗИРОВАН!');
+            print('[Init] ✅ FCM инициализирован');
 
-            // Получаем токен
-            print('[Init] 🔑 Получение FCM токена...');
             final fcmToken = await FCMService().getToken();
-
-            print('[Init] ========================================');
-            if (fcmToken != null && fcmToken.isNotEmpty) {
-              print('[Init] ✅✅✅ FCM ТОКЕН ПОЛУЧЕН!');
+            if (fcmToken != null) {
               print(
-                  '[Init] Token (первые 50 символов): ${fcmToken.substring(0, fcmToken.length > 50 ? 50 : fcmToken.length)}...');
-              print('[Init] Token length: ${fcmToken.length}');
-
-              // Регистрируем токен на бэкенде
-              print('[Init] 📤 Регистрация токена на бэкенде...');
+                  '[Init] 🔑 FCM токен получен: ${fcmToken.substring(0, 30)}...');
               await FCMService().refreshToken();
-              print('[Init] ✅✅✅ ТОКЕН ЗАРЕГИСТРИРОВАН НА БЭКЕНДЕ!');
-            } else {
-              print('[Init] ❌❌❌ FCM ТОКЕН НЕ ПОЛУЧЕН!');
-              print('[Init] Token value: $fcmToken');
+              print('[Init] ✅ FCM токен зарегистрирован на сервере');
             }
-            print('[Init] ========================================');
-          } catch (e, stackTrace) {
-            print('[Init] ========================================');
-            print('[Init] ❌❌❌ ОШИБКА ИНИЦИАЛИЗАЦИИ FCM');
-            print('[Init] Ошибка: $e');
-            print('[Init] Stack trace: $stackTrace');
-            print('[Init] ========================================');
-            // Продолжаем работу даже если FCM не работает
+          } catch (e) {
+            print('[Init] ⚠️ Ошибка FCM (не критично): $e');
           }
         }
 
-        print('[Init] 🔌 Инициализация WebRTC...');
+        // ⭐⭐⭐ КРИТИЧНО: Инициализируем WebRTC ПЕРВЫМ, ДО загрузки чатов!
         try {
+          print('[Init] 📞 Инициализация WebRTC...');
           await WebRTCService.instance.initialize(
             authProvider.currentUser!.id.toString(),
           );
-          print('[Init] ✅ WebRTC успешно инициализирован');
+          print('[Init] ✅ WebRTC инициализирован');
 
-          if (mounted) {
-            print('[Init] 📢 Вызываем _notifyWebRTCReady()');
-            _notifyWebRTCReady();
-          }
+          // ⭐ Уведомляем CallOverlayWrapper что WebRTC готов
+          if (mounted) _notifyWebRTCReady();
+
+          // ⭐ Даем время WebSocket подключиться и получить pending звонки
+          await Future.delayed(Duration(milliseconds: 1000));
+          print('[Init] ⏳ Даём время WebSocket получить pending звонки...');
         } catch (e) {
-          print('[Init] ⚠️ Ошибка инициализации WebRTC: $e');
+          print('[Init] ⚠️ Ошибка WebRTC (не критично): $e');
         }
 
-        final chatProvider = context.read<ChatProvider>();
-        print('[Init] 📨 Загружаем чаты...');
-        chatProvider.setCurrentUserId(authProvider.currentUser!.id.toString());
-
         try {
+          print('[Init] 💬 Загрузка чатов...');
+          final chatProvider = context.read<ChatProvider>();
+          chatProvider
+              .setCurrentUserId(authProvider.currentUser!.id.toString());
           await chatProvider.loadChats();
-          print('[Init] ✅ Чаты загружены (${chatProvider.chats.length} шт.)');
+          print('[Init] ✅ Чаты загружены');
         } catch (e) {
           print('[Init] ⚠️ Ошибка загрузки чатов: $e');
         }
@@ -391,11 +253,12 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
           _isAuthenticated = true;
           _isInitializing = false;
         });
-      } else {
-        print('[Init] ========================================');
-        print('[Init] ℹ️ Пользователь не авторизован');
-        print('[Init] ========================================');
 
+        print('[Init] ========================================');
+        print('[Init] ✅ Инициализация завершена успешно');
+        print('[Init] ========================================');
+      } else {
+        print('[Init] ℹ️ Пользователь не авторизован');
         setState(() {
           _isAuthenticated = false;
           _isInitializing = false;
@@ -403,8 +266,7 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
       }
     } catch (e, stackTrace) {
       print('[Init] ========================================');
-      print('[Init] ❌ КРИТИЧЕСКАЯ ОШИБКА инициализации');
-      print('[Init] Ошибка: $e');
+      print('[Init] ❌ Ошибка инициализации: $e');
       print('[Init] Stack trace: $stackTrace');
       print('[Init] ========================================');
 
@@ -413,22 +275,12 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
         _isInitializing = false;
       });
     }
-
-    print('[Init] ========================================');
-    print('[Init] Инициализация завершена');
-    print('[Init] Статус авторизации: $_isAuthenticated');
-    print('[Init] ========================================');
   }
 
   void _notifyWebRTCReady() {
     final callOverlayState =
         context.findAncestorStateOfType<_CallOverlayWrapperState>();
-    if (callOverlayState != null) {
-      print('[Init] 📢 Уведомляем CallOverlay о готовности WebRTC');
-      callOverlayState.onWebRTCReady();
-    } else {
-      print('[Init] ⚠️ CallOverlayWrapper не найден в дереве виджетов');
-    }
+    callOverlayState?.onWebRTCReady();
   }
 
   @override
@@ -447,31 +299,19 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  '🔐',
-                  style: TextStyle(fontSize: 80),
-                ),
+                Text('🔐', style: TextStyle(fontSize: 80)),
                 SizedBox(height: 20),
-                Text(
-                  'SecureWave',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+                Text('SecureWave',
+                    style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
                 SizedBox(height: 40),
                 CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                 SizedBox(height: 20),
-                Text(
-                  'Загрузка...',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
-                ),
+                Text('Initializing...',
+                    style: TextStyle(color: Colors.white70)),
               ],
             ),
           ),
@@ -487,7 +327,6 @@ class _InitializationWrapperState extends State<InitializationWrapper> {
   }
 }
 
-// Виджет для отображения входящих звонков поверх всего приложения
 class CallOverlayWrapper extends StatefulWidget {
   final Widget child;
 
@@ -495,113 +334,220 @@ class CallOverlayWrapper extends StatefulWidget {
 
   @override
   _CallOverlayWrapperState createState() => _CallOverlayWrapperState();
-
-  static _CallOverlayWrapperState? of(BuildContext context) {
-    return context.findAncestorStateOfType<_CallOverlayWrapperState>();
-  }
 }
 
 class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
-  Call? _incomingCall;
   StreamSubscription<Call?>? _callSubscription;
-  bool _isWebRTCReady = false;
   OverlayEntry? _overlayEntry;
+  MethodChannel? _notificationChannel;
+  bool _isWebRTCReady = false;
 
   @override
   void initState() {
     super.initState();
-
     print('[CallOverlay] ========================================');
-    print('[CallOverlay] initState - инициализация overlay');
-    print('[CallOverlay] Платформа: ${kIsWeb ? "Web" : "Mobile"}');
+    print('[CallOverlay] 🎭 CallOverlayWrapper инициализирован');
     print('[CallOverlay] ========================================');
 
-    // Подписываемся на FCM callback для мобильных платформ
+    _setupNotificationChannel();
+
     if (!kIsWeb) {
-      // Задержка для инициализации FCM
       Future.delayed(Duration(seconds: 2), () {
-        if (mounted) {
-          _setupFCMCallback();
-        }
+        if (mounted) _setupFCMCallback();
       });
     }
-
-    print('[CallOverlay] ⏳ Ожидаем инициализации WebRTC...');
   }
 
-  // Настройка FCM callback
+  void _setupNotificationChannel() {
+    print('[CallOverlay] 🔧 Настройка notification channel...');
+
+    _notificationChannel =
+        const MethodChannel('com.securewave.app/notification');
+
+    _notificationChannel?.setMethodCallHandler((call) async {
+      print('[CallOverlay] ========================================');
+      print('[CallOverlay] 📱 MethodChannel callback: ${call.method}');
+      print('[CallOverlay] ========================================');
+
+      if (call.method == 'onNotificationTap') {
+        try {
+          final data = Map<String, dynamic>.from(call.arguments);
+          _handleNativeIntent(data);
+        } catch (e) {
+          print('[CallOverlay] ❌ Ошибка: $e');
+        }
+      }
+    });
+
+    print('[CallOverlay] ✅ Notification channel настроен');
+  }
+
+  // ⭐⭐⭐ ИСПРАВЛЕНО: Правильная обработка accept/decline
+  void _handleNativeIntent(Map<String, dynamic> data) {
+    final type = data['type'];
+
+    if (type == 'incoming_call') {
+      final callId = data['callId'];
+      final callerName = data['callerName'];
+      final callType = data['callType'];
+      final action = data['action'];
+
+      print('[CallOverlay] ========================================');
+      print('[CallOverlay] 📞 Входящий звонок!');
+      print('[CallOverlay]   - callId: $callId');
+      print('[CallOverlay]   - callerName: $callerName');
+      print('[CallOverlay]   - callType: $callType');
+      print('[CallOverlay]   - action: $action');
+      print('[CallOverlay]   - _isWebRTCReady: $_isWebRTCReady');
+      print('[CallOverlay] ========================================');
+
+      if (callId == null) {
+        print('[CallOverlay] ❌ callId отсутствует!');
+        return;
+      }
+
+      // ⭐ КРИТИЧНО: Ждём пока WebRTC инициализируется
+      if (!_isWebRTCReady) {
+        print('[CallOverlay] ⏳ WebRTC ещё не готов, ждём...');
+
+        // Ждём до 5 секунд пока WebRTC инициализируется
+        int attempts = 0;
+        Timer.periodic(Duration(milliseconds: 500), (timer) {
+          attempts++;
+
+          if (_isWebRTCReady) {
+            timer.cancel();
+            print('[CallOverlay] ✅ WebRTC готов, обрабатываем звонок!');
+            _processCallAction(callId, callerName, callType, action);
+          } else if (attempts >= 10) {
+            timer.cancel();
+            print('[CallOverlay] ❌ Timeout ожидания WebRTC!');
+          }
+        });
+
+        return;
+      }
+
+      _processCallAction(callId, callerName, callType, action);
+    }
+  }
+
+  void _processCallAction(
+      String callId, String? callerName, String? callType, String? action) {
+    if (action == 'accept') {
+      print('[CallOverlay] ========================================');
+      print('[CallOverlay] ✅✅✅ ПРИНИМАЕМ ЗВОНОК!');
+      print('[CallOverlay] ========================================');
+
+      final call = Call(
+        id: callId,
+        chatId: 'unknown',
+        callerId: '',
+        callerName: callerName ?? 'Unknown',
+        receiverId: '',
+        receiverName: 'You',
+        callType: callType ?? 'audio',
+        status: CallStatus.connecting,
+        startTime: DateTime.now(),
+      );
+
+      // ⭐⭐⭐ АКТИВНОЕ ОЖИДАНИЕ: Проверяем каждые 100ms, готов ли offer
+      print('[CallOverlay] ⏳ Ждём получения call_offer через WebSocket...');
+
+      int attempts = 0;
+      Timer.periodic(Duration(milliseconds: 100), (timer) {
+        attempts++;
+
+        // ⭐ Используем публичный getter
+        final hasCall = WebRTCService.instance.currentCall?.id == callId;
+
+        if (hasCall) {
+          timer.cancel();
+          print('[CallOverlay] ========================================');
+          print('[CallOverlay] ✅✅✅ CALL_OFFER ПОЛУЧЕН! (попытка $attempts)');
+          print('[CallOverlay] ========================================');
+
+          // Отвечаем на звонок
+          print('[CallOverlay] 📞 Вызываем WebRTCService.answerCall()...');
+          WebRTCService.instance.answerCall(callId).then((_) {
+            print('[CallOverlay] ========================================');
+            print('[CallOverlay] ✅ answerCall() выполнен успешно!');
+            print('[CallOverlay] ========================================');
+          }).catchError((error) {
+            print('[CallOverlay] ========================================');
+            print('[CallOverlay] ❌ Ошибка answerCall(): $error');
+            print('[CallOverlay] ========================================');
+          });
+
+          // Открываем CallScreen
+          print('[CallOverlay] 🚀 Открываем CallScreen...');
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (_) => CallScreen(initialCall: call),
+            ),
+          );
+
+          print('[CallOverlay] ========================================');
+          print('[CallOverlay] ✅ CallScreen запущен');
+          print('[CallOverlay] ========================================');
+        } else if (attempts >= 30) {
+          // Максимум 3 секунды (30 * 100ms)
+          timer.cancel();
+          print('[CallOverlay] ========================================');
+          print('[CallOverlay] ❌ TIMEOUT: call_offer не получен за 3 секунды!');
+          print('[CallOverlay] ========================================');
+        } else {
+          print(
+              '[CallOverlay] ⏳ Попытка $attempts/30: offer ещё не получен...');
+        }
+      });
+    } else if (action == 'decline') {
+      print('[CallOverlay] ========================================');
+      print('[CallOverlay] ❌ ОТКЛОНЯЕМ ЗВОНОК!');
+      print('[CallOverlay] ========================================');
+
+      WebRTCService.instance.declineCall(callId);
+
+      print('[CallOverlay] ✅ Звонок отклонён');
+      print('[CallOverlay] ========================================');
+    } else {
+      print('[CallOverlay] ⚠️ Неизвестное действие: $action');
+    }
+  }
+
   void _setupFCMCallback() {
-    print('[CallOverlay] ========================================');
-    print('[CallOverlay] 📱 Настройка FCM callback для входящих звонков');
-    print('[CallOverlay] ========================================');
-
     try {
-      final fcmService = FCMService();
+      FCMService().onIncomingCall = (data) {
+        if (!mounted) return;
 
-      // Устанавливаем callback для входящих звонков
-      fcmService.onIncomingCall = (data) {
-        print('[CallOverlay] ========================================');
-        print('[CallOverlay] 🔔 FCM CALLBACK: Входящий звонок!');
-        print('[CallOverlay] Данные: $data');
-        print('[CallOverlay] ========================================');
-
-        if (!mounted) {
-          print('[CallOverlay] ⚠️ Widget не смонтирован, игнорируем');
-          return;
-        }
-
-        // Извлекаем данные
         final callId = data['callId'];
-        final chatId = data['chatId'] ?? 'unknown';
-        final callerName = data['callerName'] ?? 'Unknown';
-        final callType = data['callType'] ?? 'video';
-        final callerAvatar = data['callerAvatar'];
+        if (callId == null) return;
 
-        if (callId == null) {
-          print('[CallOverlay] ❌ callId отсутствует в данных');
-          return;
-        }
-
-        print('[CallOverlay] 📞 Создаем Call объект:');
-        print('[CallOverlay]   - callId: $callId');
-        print('[CallOverlay]   - chatId: $chatId');
-        print('[CallOverlay]   - callerName: $callerName');
-        print('[CallOverlay]   - callType: $callType');
-
-        // Создаем Call объект из FCM данных
-        final incomingCall = Call(
+        final call = Call(
           id: callId,
-          chatId: chatId,
+          chatId: data['chatId'] ?? 'unknown',
           callerId: '',
-          callerName: callerName,
+          callerName: data['callerName'] ?? 'Unknown',
           receiverId: '',
           receiverName: 'You',
-          callType: callType,
+          callType: data['callType'] ?? 'audio',
           status: CallStatus.incoming,
           startTime: DateTime.now(),
         );
 
-        print('[CallOverlay] ✅ Call объект создан, показываем overlay');
-
-        // Показываем overlay
-        _showIncomingCallOverlay(incomingCall);
+        _showIncomingCallOverlay(call);
       };
-
-      print('[CallOverlay] ✅ FCM callback установлен');
     } catch (e) {
-      print('[CallOverlay] ❌ Ошибка настройки FCM callback: $e');
+      print('[CallOverlay] ❌ Ошибка: $e');
     }
   }
 
+  // ⭐ Вызывается когда WebRTC готов
   void onWebRTCReady() {
+    if (!mounted) return;
     print('[CallOverlay] ========================================');
-    print('[CallOverlay] 🎉 WebRTC готов! Подписываемся на звонки');
+    print('[CallOverlay] 📞📞📞 WebRTC ГОТОВ!');
     print('[CallOverlay] ========================================');
-
-    if (!mounted) {
-      print('[CallOverlay] ⚠️ Widget не смонтирован, отменяем подписку');
-      return;
-    }
 
     setState(() {
       _isWebRTCReady = true;
@@ -611,51 +557,28 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   }
 
   void _subscribeToCallState() {
-    print('[CallOverlay] 📡 Подписка на callState stream...');
+    print('[CallOverlay] 🔔 Подписка на callState stream...');
 
     _callSubscription?.cancel();
+    _callSubscription = WebRTCService.instance.callState.listen((call) {
+      if (!mounted) return;
 
-    _callSubscription = WebRTCService.instance.callState.listen(
-      (call) {
-        print('[CallOverlay] ========================================');
-        print('[CallOverlay] 📨 Получено обновление звонка');
-        print('[CallOverlay] Call: ${call != null ? "EXISTS" : "NULL"}');
+      print('[CallOverlay] 📢 CallState изменился: ${call?.status}');
 
-        if (call != null) {
-          print('[CallOverlay]   - ID: ${call.id}');
-          print('[CallOverlay]   - Status: ${call.status}');
-          print('[CallOverlay]   - Caller: ${call.callerName}');
-          print('[CallOverlay]   - Type: ${call.callType}');
-        }
-        print('[CallOverlay] ========================================');
+      if (call != null && call.status == CallStatus.incoming) {
+        print('[CallOverlay] 📞 Показываем overlay для входящего звонка');
+        _showIncomingCallOverlay(call);
+      } else if (call == null || call.status == CallStatus.ended) {
+        print('[CallOverlay] 🔴 Скрываем overlay');
+        _hideIncomingCallOverlay();
+      }
+    });
 
-        if (!mounted) return;
-
-        if (call != null && call.status == CallStatus.incoming) {
-          print(
-              '[CallOverlay] ✅ ПОКАЗЫВАЕМ входящий звонок от ${call.callerName}');
-          _showIncomingCallOverlay(call);
-        } else if (call == null ||
-            call.status == CallStatus.ended ||
-            call.status == CallStatus.declined) {
-          print('[CallOverlay] 🔴 Скрываем overlay (статус: ${call?.status})');
-          _hideIncomingCallOverlay();
-        }
-      },
-      onError: (error) {
-        print('[CallOverlay] ❌ Ошибка в callState stream: $error');
-      },
-      cancelOnError: false,
-    );
-
-    print('[CallOverlay] ✅ Подписка на callState активирована');
+    print('[CallOverlay] ✅ Подписка на callState активна');
   }
 
   void _showIncomingCallOverlay(Call call) {
     _overlayEntry?.remove();
-
-    print('[CallOverlay] 🎨 Создаем OverlayEntry');
-
     final overlayContext = context;
 
     _overlayEntry = OverlayEntry(
@@ -665,29 +588,18 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
           color: Colors.black.withOpacity(0.8),
           child: IncomingCallOverlay(
             incomingCall: call,
-            onDismiss: () {
-              print('[CallOverlay] onDismiss вызван');
-              _hideIncomingCallOverlay();
-            },
+            onDismiss: _hideIncomingCallOverlay,
             onAccept: () async {
-              print('[CallOverlay] ✅ onAccept - принимаем звонок');
-
               try {
                 await WebRTCService.instance.answerCall(call.id);
-                print('[CallOverlay] ✅ answerCall вызван');
               } catch (e) {
-                print('[CallOverlay] ❌ Ошибка answerCall: $e');
+                print('[CallOverlay] ❌ Ошибка: $e');
               }
-
               _hideIncomingCallOverlay();
-
               Navigator.of(overlayContext).push(
                 MaterialPageRoute(
-                  builder: (_) => CallScreen(initialCall: call),
-                ),
+                    builder: (_) => CallScreen(initialCall: call)),
               );
-
-              print('[CallOverlay] ✅ CallScreen открыт');
             },
           ),
         ),
@@ -695,7 +607,6 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
     );
 
     Overlay.of(context).insert(_overlayEntry!);
-    print('[CallOverlay] ✅ OverlayEntry вставлен');
   }
 
   void _hideIncomingCallOverlay() {
@@ -705,15 +616,10 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
 
   @override
   void dispose() {
-    print('[CallOverlay] dispose - отменяем подписку');
-
     if (!kIsWeb) {
       try {
         FCMService().onIncomingCall = null;
-        print('[CallOverlay] ✅ FCM callback очищен');
-      } catch (e) {
-        print('[CallOverlay] ⚠️ Ошибка очистки FCM callback: $e');
-      }
+      } catch (e) {}
     }
 
     _hideIncomingCallOverlay();
@@ -722,7 +628,5 @@ class _CallOverlayWrapperState extends State<CallOverlayWrapper> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 }

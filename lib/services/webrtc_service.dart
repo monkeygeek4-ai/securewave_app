@@ -1,6 +1,7 @@
 // lib/services/webrtc_service.dart
 
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../models/call.dart';
 import 'websocket_manager.dart';
@@ -16,14 +17,20 @@ class WebRTCService {
     _initializeStreams();
   }
 
+  // MethodChannel для вызова нативных методов
+  static const platform = MethodChannel('com.securewave.app/call');
+
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
   String? _currentUserId;
   Call? _currentCall;
-
-  // ⭐ ДОБАВЛЕНО: Хранение offer для входящих звонков
+  Call? get currentCall => _currentCall;
+  // Хранение offer для входящих звонков
   Map<String, dynamic>? _pendingOffer;
+
+  // Флаг защиты от повторного вызова
+  bool _isAnswering = false;
 
   StreamController<Call?>? _callStateController;
   StreamController<MediaStream?>? _localStreamController;
@@ -311,7 +318,6 @@ class WebRTCService {
     }
   }
 
-  // ⭐⭐⭐ КРИТИЧНО: Обработка входящего звонка
   Future<void> _handleIncomingCall(Map<String, dynamic> message) async {
     try {
       print('[WebRTC] ========================================');
@@ -339,6 +345,9 @@ class WebRTCService {
         print(
             '[WebRTC]   - offer.sdp: ${offer['sdp'] != null ? "ЕСТЬ" : "НЕТ"}');
         print('[WebRTC]   - offer.type: ${offer['type']}');
+        if (offer['sdp'] != null) {
+          print('[WebRTC]   - offer.sdp size: ${offer['sdp'].length} bytes');
+        }
       }
       print('[WebRTC] ========================================');
 
@@ -357,9 +366,12 @@ class WebRTCService {
         return;
       }
 
-      // Сохраняем offer для использования при ответе
+      // ⭐⭐⭐ КРИТИЧНО: Сохраняем offer для использования при ответе
       _pendingOffer = offer;
-      print('[WebRTC] ✅ Offer сохранен в _pendingOffer');
+      print('[WebRTC] ========================================');
+      print('[WebRTC] ✅✅✅ OFFER СОХРАНЕН В _pendingOffer!');
+      print('[WebRTC] SDP size: ${offer['sdp']?.length ?? 0} bytes');
+      print('[WebRTC] ========================================');
 
       // Создаем объект Call для входящего звонка
       _currentCall = Call(
@@ -383,8 +395,22 @@ class WebRTCService {
       print('[WebRTC]   - CallType: ${_currentCall!.callType}');
       print('[WebRTC] ========================================');
 
-      // ⭐⭐⭐ КРИТИЧНО: Уведомляем UI о входящем звонке!
-      print('[WebRTC] 📢📢📢 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ В UI!');
+      // Запускаем CallActivity через нативный метод
+      print('[WebRTC] 🚀🚀🚀 ЗАПУСКАЕМ CallActivity через нативный метод!');
+      try {
+        await platform.invokeMethod('showCallScreen', {
+          'callId': callId,
+          'callerName': callerName ?? 'Неизвестный',
+          'callType': callType ?? 'audio',
+        });
+        print('[WebRTC] ✅ showCallScreen вызван успешно!');
+      } catch (e) {
+        print('[WebRTC] ❌ Ошибка вызова showCallScreen: $e');
+        print('[WebRTC] Stack trace: ${StackTrace.current}');
+      }
+
+      // Уведомляем UI о входящем звонке (для fallback)
+      print('[WebRTC] 📢 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ В UI!');
       _safeAddToCallState(_currentCall);
 
       print('[WebRTC] ========================================');
@@ -399,22 +425,54 @@ class WebRTCService {
     }
   }
 
+  // ⭐⭐⭐ ИСПРАВЛЕНО: Используем УЖЕ СОХРАНЕННЫЙ offer из WebSocket
   Future<void> answerCall(String callId) async {
     try {
+      print('[WebRTC] ========================================');
+      print('[WebRTC] 📞 answerCall() вызван');
+      print('[WebRTC]   - callId: $callId');
+      print('[WebRTC]   - _isAnswering: $_isAnswering');
+      print('[WebRTC]   - _currentCall: ${_currentCall?.id}');
+      print(
+          '[WebRTC]   - _pendingOffer: ${_pendingOffer != null ? "ЕСТЬ ✅" : "НЕТ ❌"}');
+      print('[WebRTC] ========================================');
+
+      // Проверяем что не выполняется уже
+      if (_isAnswering) {
+        print(
+            '[WebRTC] ⚠️ answerCall уже выполняется, пропускаем повторный вызов');
+        return;
+      }
+
+      _isAnswering = true;
+
+      // КРИТИЧНО: Звонок и offer ДОЛЖНЫ быть уже сохранены в _handleIncomingCall!
       if (_currentCall == null || _currentCall!.id != callId) {
-        print('[WebRTC] ❌ Звонок не найден');
+        print('[WebRTC] ❌ Звонок не найден!');
+        print('[WebRTC]   _currentCall: ${_currentCall?.id}');
+        print('[WebRTC]   callId: $callId');
+        _isAnswering = false;
         return;
       }
 
       if (_pendingOffer == null) {
-        print('[WebRTC] ❌ КРИТИЧЕСКАЯ ОШИБКА: Нет сохраненного offer!');
+        print('[WebRTC] ========================================');
+        print('[WebRTC] ❌❌❌ КРИТИЧЕСКАЯ ОШИБКА: Нет сохраненного offer!');
+        print(
+            '[WebRTC] Это значит что call_offer НЕ БЫЛ получен через WebSocket!');
+        print(
+            '[WebRTC] Проверьте что сервер отправляет pending call_offer при подключении!');
+        print('[WebRTC] ========================================');
+        _isAnswering = false;
         return;
       }
 
       print('[WebRTC] ========================================');
-      print('[WebRTC] ✅ ОТВЕЧАЕМ НА ЗВОНОК');
+      print('[WebRTC] ✅✅✅ ОТВЕЧАЕМ НА ЗВОНОК!');
       print('[WebRTC] ========================================');
       print('[WebRTC] CallId: $callId');
+      print(
+          '[WebRTC] Offer SDP size: ${_pendingOffer!['sdp']?.length ?? 0} bytes');
 
       _currentCall = _currentCall!.copyWith(status: CallStatus.connecting);
       _safeAddToCallState(_currentCall);
@@ -440,11 +498,20 @@ class WebRTCService {
       print('[WebRTC] 📤 Отправляем answer через WebSocket');
       WebSocketManager.instance.sendCallAnswer(callId, answer.toMap());
 
-      print('[WebRTC] ✅ Answer отправлен');
       print('[WebRTC] ========================================');
+      print('[WebRTC] ✅✅✅ ANSWER ОТПРАВЛЕН УСПЕШНО!');
+      print('[WebRTC] ========================================');
+
+      _isAnswering = false;
     } catch (e, stackTrace) {
-      print('[WebRTC] ❌ Ошибка ответа на звонок: $e');
+      print('[WebRTC] ========================================');
+      print('[WebRTC] ❌❌❌ ОШИБКА ответа на звонок!');
+      print('[WebRTC] Ошибка: $e');
       print('[WebRTC] Stack trace: $stackTrace');
+      print('[WebRTC] ========================================');
+
+      _isAnswering = false;
+
       await endCall('error');
     }
   }
@@ -503,13 +570,18 @@ class WebRTCService {
     }
   }
 
+  // ИСПРАВЛЕНО: Защита от concurrent modification
   Future<void> _processIceCandidatesQueue() async {
     if (_iceCandidatesQueue.isEmpty) return;
 
     print(
         '[WebRTC] 📋 Обработка очереди ICE кандидатов (${_iceCandidatesQueue.length})');
 
-    for (final candidate in _iceCandidatesQueue) {
+    // Создаем копию чтобы избежать concurrent modification
+    final candidatesToProcess = List<RTCIceCandidate>.from(_iceCandidatesQueue);
+    _iceCandidatesQueue.clear();
+
+    for (final candidate in candidatesToProcess) {
       try {
         await _peerConnection!.addCandidate(candidate);
       } catch (e) {
@@ -517,7 +589,6 @@ class WebRTCService {
       }
     }
 
-    _iceCandidatesQueue.clear();
     print('[WebRTC] ✅ Очередь ICE кандидатов обработана');
   }
 
