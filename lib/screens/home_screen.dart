@@ -71,6 +71,40 @@ Widget _glass({
   );
 }
 
+
+// ── Stars painter ────────────────────────────────────────────────────────────
+class _StarsPainter extends CustomPainter {
+  final List<_Star> stars;
+  _StarsPainter(this.stars);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+    for (final s in stars) {
+      paint.color = Colors.white.withOpacity(s.opacity);
+      canvas.drawCircle(Offset(s.x * size.width, s.y * size.height), s.radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StarsPainter old) => false;
+}
+
+class _Star {
+  final double x, y, radius, opacity;
+  const _Star(this.x, this.y, this.radius, this.opacity);
+}
+
+// Pre-generated star field (deterministic)
+final _kStars = List<_Star>.generate(120, (i) {
+  final seed = i * 2654435761;
+  final x = ((seed ^ (seed >> 13)) & 0xFFFF) / 0xFFFF;
+  final y = ((seed ^ (seed >> 7)) & 0xFFFF) / 0xFFFF;
+  final r = (i % 3 == 0) ? 1.5 : (i % 2 == 0) ? 1.0 : 0.6;
+  final op = (0.3 + ((seed & 0xFF) / 0xFF) * 0.6).clamp(0.2, 0.9);
+  return _Star(x, y, r, op);
+});
+
 // ── Main widget ───────────────────────────────────────────────────────────────
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -404,20 +438,62 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // ── Space background ───────────────────────────────────────────────────────
   Widget _buildSpaceBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(0.2, -0.5),
-          radius: 1.4,
-          colors: [
-            Color(0xFF2D1B69),
-            Color(0xFF1A0B3D),
-            Color(0xFF0A0415),
-            Color(0xFF050210),
-          ],
-          stops: [0.0, 0.3, 0.7, 1.0],
+    return Stack(
+      children: [
+        // Gradient
+        Container(
+          decoration: const BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0.2, -0.5),
+              radius: 1.4,
+              colors: [
+                Color(0xFF2D1B69),
+                Color(0xFF1A0B3D),
+                Color(0xFF0A0415),
+                Color(0xFF050210),
+              ],
+              stops: [0.0, 0.3, 0.7, 1.0],
+            ),
+          ),
         ),
-      ),
+        // Stars
+        CustomPaint(
+          painter: _StarsPainter(_kStars),
+          child: const SizedBox.expand(),
+        ),
+        // Nebula glow top-right
+        Positioned(
+          top: -100, right: -80,
+          child: Container(
+            width: 300, height: 300,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Color(0xFF7C3AED).withOpacity(0.25),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Nebula glow bottom-left
+        Positioned(
+          bottom: -60, left: -60,
+          child: Container(
+            width: 220, height: 220,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  Color(0xFF4338CA).withOpacity(0.18),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -680,32 +756,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                       child: ClipOval(child: _buildAvatar(chat)),
                     ),
-                    // unread badge
-                    if (chat.unreadCount > 0)
-                      Positioned(
-                        right: 0, top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [_kUnread, Color(0xFFF43F5E)],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [BoxShadow(
-                              color: _kUnread.withOpacity(0.5),
-                              blurRadius: 6,
-                            )],
-                          ),
-                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-                          child: Text(
-                            chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    // online dot (only when no unread)
-                    if (chat.isOnline && chat.unreadCount == 0)
+                    // Online dot — always at bottom-right when online
+                    if (chat.isOnline)
                       Positioned(
                         right: 2, bottom: 2,
                         child: Container(
@@ -752,39 +804,49 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
-                // ── Time + more ──
+                // ── Time + unread badge ──
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (chat.lastMessageTime != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          gradient: chat.unreadCount > 0
-                              ? const LinearGradient(colors: [_kPurple, _kIndigo])
-                              : null,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          _formatTime(chat.lastMessageTime!),
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: chat.unreadCount > 0
-                                ? Colors.white
-                                : Colors.white.withOpacity(0.4),
-                            fontWeight: chat.unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
-                          ),
+                      Text(
+                        _formatTime(chat.lastMessageTime!),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: chat.unreadCount > 0
+                              ? Colors.white.withOpacity(0.85)
+                              : Colors.white.withOpacity(0.4),
+                          fontWeight: chat.unreadCount > 0 ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
-                    if (!isTablet) ...[
-                      const SizedBox(height: 6),
+                    const SizedBox(height: 6),
+                    if (chat.unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [_kUnread, Color(0xFF9B5CF6)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [BoxShadow(
+                            color: _kUnread.withOpacity(0.45),
+                            blurRadius: 8,
+                          )],
+                        ),
+                        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                        child: Text(
+                          chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else if (!isTablet)
                       GestureDetector(
                         onTap: () => _showChatOptions(chat),
                         child: Icon(Icons.more_vert_rounded,
                             size: 18, color: Colors.white.withOpacity(0.3)),
                       ),
-                    ],
                   ],
                 ),
               ],
