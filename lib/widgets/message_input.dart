@@ -7,12 +7,12 @@ class MessageInput extends StatefulWidget {
   final VoidCallback onAttachment;
 
   const MessageInput({
-    Key? key,
+    super.key,
     required this.controller,
     required this.onSend,
     required this.onTyping,
     required this.onAttachment,
-  }) : super(key: key);
+  });
 
   @override
   _MessageInputState createState() => _MessageInputState();
@@ -53,8 +53,8 @@ class _MessageInputState extends State<MessageInput> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: const BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
@@ -81,7 +81,7 @@ class _MessageInputState extends State<MessageInput> {
             // Поле ввода
             Expanded(
               child: Container(
-                margin: EdgeInsets.symmetric(horizontal: 4),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: Colors.grey[100],
                   borderRadius: BorderRadius.circular(25),
@@ -99,7 +99,7 @@ class _MessageInputState extends State<MessageInput> {
                           hintText: 'Введите сообщение...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 10,
                           ),
@@ -117,7 +117,7 @@ class _MessageInputState extends State<MessageInput> {
                       ),
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Эмодзи в разработке'),
                             duration: Duration(seconds: 1),
                           ),
@@ -132,7 +132,7 @@ class _MessageInputState extends State<MessageInput> {
 
             // Кнопка отправки/голосового сообщения
             AnimatedSwitcher(
-              duration: Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 200),
               transitionBuilder: (Widget child, Animation<double> animation) {
                 return ScaleTransition(
                   scale: animation,
@@ -141,8 +141,8 @@ class _MessageInputState extends State<MessageInput> {
               },
               child: _hasText
                   ? IconButton(
-                      key: ValueKey('send'),
-                      icon: Icon(
+                      key: const ValueKey('send'),
+                      icon: const Icon(
                         Icons.send,
                         color: Color(0xFF2B5CE6),
                       ),
@@ -150,14 +150,14 @@ class _MessageInputState extends State<MessageInput> {
                       tooltip: 'Отправить',
                     )
                   : IconButton(
-                      key: ValueKey('mic'),
+                      key: const ValueKey('mic'),
                       icon: Icon(
                         Icons.mic,
                         color: Colors.grey[600],
                       ),
                       onPressed: () {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
+                          const SnackBar(
                             content: Text('Голосовые сообщения в разработке'),
                             duration: Duration(seconds: 1),
                           ),

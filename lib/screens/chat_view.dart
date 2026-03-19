@@ -2,13 +2,19 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import '../models/chat.dart';
 import '../models/message.dart';
+import '../models/call.dart';
 import '../providers/chat_provider.dart';
+import '../services/webrtc_service.dart';
+import '../services/api_service.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/typing_indicator.dart';
+import '../widgets/report_dialog.dart';
 import '../utils/app_colors.dart';
+import '../utils/image_utils.dart';
 import 'call_screen.dart';
 
 class ChatView extends StatefulWidget {
@@ -16,10 +22,10 @@ class ChatView extends StatefulWidget {
   final VoidCallback? onBack;
 
   const ChatView({
-    Key? key,
+    super.key,
     required this.chat,
     this.onBack,
-  }) : super(key: key);
+  });
 
   @override
   _ChatViewState createState() => _ChatViewState();
@@ -71,8 +77,17 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _startAutoRefresh() {
-    _refreshTimer = Timer.periodic(Duration(seconds: 2), (_) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (mounted) {
+        // ⭐⭐⭐ ОСТАНАВЛИВАЕМ автообновление, если открыт CallScreen
+        final webrtcService = WebRTCService.instance;
+        final currentCall = webrtcService.currentCall;
+        if (currentCall != null && 
+            currentCall.status != CallStatus.ended && 
+            currentCall.status != CallStatus.declined) {
+          // Звонок активен, не обновляем сообщения
+          return;
+        }
         _refreshMessages();
       }
     });
@@ -137,7 +152,7 @@ class _ChatViewState extends State<ChatView> {
       if (_scrollController.hasClients && mounted) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -174,7 +189,7 @@ class _ChatViewState extends State<ChatView> {
           _isSending = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Ошибка отправки сообщения'),
             backgroundColor: Colors.red,
           ),
@@ -192,7 +207,7 @@ class _ChatViewState extends State<ChatView> {
     }
 
     _typingTimer?.cancel();
-    _typingTimer = Timer(Duration(seconds: 3), _stopTyping);
+    _typingTimer = Timer(const Duration(seconds: 3), _stopTyping);
   }
 
   void _stopTyping() {
@@ -203,13 +218,106 @@ class _ChatViewState extends State<ChatView> {
     _typingTimer?.cancel();
   }
 
+  void _handleMenuAction(String action) {
+    final chatProvider = context.read<ChatProvider>();
+    final currentUserId = chatProvider.currentUserId;
+
+    if (currentUserId == null) return;
+
+    final otherUserId = widget.chat.getOtherParticipantId(currentUserId);
+    if (otherUserId == null) return;
+
+    final otherUserIdInt = int.tryParse(otherUserId);
+    if (otherUserIdInt == null) return;
+
+    switch (action) {
+      case 'report':
+        ReportDialog.show(
+          context,
+          reportedUserId: otherUserIdInt,
+          reportedUsername: widget.chat.name,
+          chatId: int.tryParse(widget.chat.id),
+        );
+        break;
+      case 'block':
+        _showBlockConfirmation(otherUserIdInt, widget.chat.name);
+        break;
+    }
+  }
+
+  void _showBlockConfirmation(int userId, String username) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Заблокировать пользователя'),
+        content: Text('Вы уверены, что хотите заблокировать $username?\n\nВы не сможете получать от него сообщения и звонки.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _blockUser(userId, username);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Заблокировать'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _blockUser(int userId, String username) async {
+    try {
+      final response = await ApiService.instance.blockUser(userId);
+
+      if (mounted) {
+        if (response['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$username заблокирован'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Возвращаемся на главный экран
+          if (widget.onBack != null) {
+            widget.onBack!();
+          } else {
+            Navigator.of(context).pop();
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['error'] ?? 'Ошибка блокировки'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _startCall(String callType) {
     final chatProvider = context.read<ChatProvider>();
     final currentUserId = chatProvider.currentUserId;
 
     if (currentUserId == null || currentUserId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Ошибка: пользователь не авторизован'),
           backgroundColor: Colors.red,
         ),
@@ -221,7 +329,7 @@ class _ChatViewState extends State<ChatView> {
 
     if (receiverId == null || receiverId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Не удалось определить получателя звонка'),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 3),
@@ -232,7 +340,7 @@ class _ChatViewState extends State<ChatView> {
 
     if (receiverId == currentUserId) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Нельзя позвонить самому себе'),
           backgroundColor: Colors.orange,
         ),
@@ -277,7 +385,7 @@ class _ChatViewState extends State<ChatView> {
 
     if (messageDate == today) {
       return 'Сегодня';
-    } else if (messageDate == today.subtract(Duration(days: 1))) {
+    } else if (messageDate == today.subtract(const Duration(days: 1))) {
       return 'Вчера';
     } else {
       return '${date.day}.${date.month}.${date.year}';
@@ -302,7 +410,7 @@ class _ChatViewState extends State<ChatView> {
         automaticallyImplyLeading: widget.onBack != null,
         leading: widget.onBack != null
             ? IconButton(
-                icon: Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back),
                 onPressed: widget.onBack,
               )
             : null,
@@ -327,18 +435,56 @@ class _ChatViewState extends State<ChatView> {
                   child: CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.transparent,
-                    backgroundImage: widget.chat.avatarUrl != null
-                        ? NetworkImage(widget.chat.avatarUrl!)
-                        : null,
-                    child: widget.chat.avatarUrl == null
-                        ? Text(
+                    child: widget.chat.avatarUrl != null
+                        ? ClipOval(
+                            child: CachedNetworkImage(
+                              imageUrl: ImageUtils.getAvatarUrl(
+                                      widget.chat.avatarUrl) ??
+                                  '',
+                              fit: BoxFit.cover,
+                              width: 40,
+                              height: 40,
+                              placeholder: (context, url) => Container(
+                                decoration: BoxDecoration(
+                                  gradient: widget.chat.avatarUrl == null
+                                      ? AppColors.primaryGradient
+                                      : null,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    widget.chat.name[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Container(
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.primaryGradient,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    widget.chat.name[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : Text(
                             widget.chat.name[0].toUpperCase(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
-                          )
-                        : null,
+                          ),
                   ),
                 ),
                 if (widget.chat.isOnline)
@@ -357,14 +503,15 @@ class _ChatViewState extends State<ChatView> {
                   ),
               ],
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.chat.name,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis,
                   ),
                   Consumer<ChatProvider>(
@@ -372,7 +519,7 @@ class _ChatViewState extends State<ChatView> {
                       final typingUser =
                           chatProvider.getTypingUserName(widget.chat.id);
                       if (typingUser != null) {
-                        return Text(
+                        return const Text(
                           'печатает...',
                           style: TextStyle(
                             fontSize: 12,
@@ -383,7 +530,8 @@ class _ChatViewState extends State<ChatView> {
                       }
                       return Text(
                         widget.chat.isOnline ? 'В сети' : 'Не в сети',
-                        style: TextStyle(fontSize: 12, color: Colors.white70),
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.white70),
                       );
                     },
                   ),
@@ -394,18 +542,40 @@ class _ChatViewState extends State<ChatView> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.videocam),
+            icon: const Icon(Icons.videocam),
             onPressed: () => _startCall('video'),
             tooltip: 'Видеозвонок',
           ),
           IconButton(
-            icon: Icon(Icons.call),
+            icon: const Icon(Icons.call),
             onPressed: () => _startCall('audio'),
             tooltip: 'Аудиозвонок',
           ),
-          IconButton(
-            icon: Icon(Icons.more_vert),
-            onPressed: () {},
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) => _handleMenuAction(value),
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: Colors.orange),
+                    SizedBox(width: 12),
+                    Text('Пожаловаться'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'block',
+                child: Row(
+                  children: [
+                    Icon(Icons.block, color: Colors.red),
+                    SizedBox(width: 12),
+                    Text('Заблокировать'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -434,10 +604,10 @@ class _ChatViewState extends State<ChatView> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          CircularProgressIndicator(
+                          const CircularProgressIndicator(
                             color: AppColors.primaryPurple,
                           ),
-                          SizedBox(height: 16),
+                          const SizedBox(height: 16),
                           Text(
                             'Загрузка сообщений...',
                             style: TextStyle(
@@ -455,19 +625,19 @@ class _ChatViewState extends State<ChatView> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            padding: EdgeInsets.all(24),
+                            padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               gradient: AppColors.primaryGradient,
                               shape: BoxShape.circle,
                               boxShadow: [AppColors.primaryShadow],
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.chat_bubble_outline,
                               size: 60,
                               color: Colors.white,
                             ),
                           ),
-                          SizedBox(height: 24),
+                          const SizedBox(height: 24),
                           Text(
                             'Нет сообщений',
                             style: TextStyle(
@@ -476,7 +646,7 @@ class _ChatViewState extends State<ChatView> {
                               color: AppColors.getTextColor(context),
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
                             'Начните разговор!',
                             style: TextStyle(
@@ -491,7 +661,7 @@ class _ChatViewState extends State<ChatView> {
 
                   return ListView.builder(
                     controller: _scrollController,
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final message = messages[index];
@@ -502,9 +672,9 @@ class _ChatViewState extends State<ChatView> {
                         children: [
                           if (_shouldShowDate(message, previousMessage))
                             Padding(
-                              padding: EdgeInsets.symmetric(vertical: 10),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               child: Container(
-                                padding: EdgeInsets.symmetric(
+                                padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
                                   color: isDarkMode
@@ -527,6 +697,8 @@ class _ChatViewState extends State<ChatView> {
                             message: message,
                             isMe:
                                 message.senderId == chatProvider.currentUserId,
+                            currentUserId: chatProvider.currentUserId?.toString(), // ⭐ НОВОЕ: Передаем currentUserId
+                            allMessages: messages, // ⭐ НОВОЕ: Передаем все сообщения для сбора медиа
                           ),
                         ],
                       );
@@ -541,11 +713,12 @@ class _ChatViewState extends State<ChatView> {
                     chatProvider.getTypingUserName(widget.chat.id);
                 if (typingUser != null) {
                   return Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(
                       children: [
                         TypingIndicator(),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Text(
                           '$typingUser печатает...',
                           style: TextStyle(
@@ -558,7 +731,7 @@ class _ChatViewState extends State<ChatView> {
                     ),
                   );
                 }
-                return SizedBox.shrink();
+                return const SizedBox.shrink();
               },
             ),
             Container(
@@ -568,16 +741,16 @@ class _ChatViewState extends State<ChatView> {
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
                     blurRadius: 10,
-                    offset: Offset(0, -2),
+                    offset: const Offset(0, -2),
                   ),
                 ],
               ),
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: SafeArea(
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(
+                      icon: const Icon(
                         Icons.attach_file,
                         color: AppColors.primaryPurple,
                       ),
@@ -608,7 +781,7 @@ class _ChatViewState extends State<ChatView> {
                               color: AppColors.getSecondaryTextColor(context),
                             ),
                             border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 10,
                             ),
@@ -616,7 +789,7 @@ class _ChatViewState extends State<ChatView> {
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Container(
                       decoration: BoxDecoration(
                         gradient: _messageController.text.trim().isEmpty
@@ -632,7 +805,7 @@ class _ChatViewState extends State<ChatView> {
                       ),
                       child: IconButton(
                         icon: _isSending
-                            ? SizedBox(
+                            ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(

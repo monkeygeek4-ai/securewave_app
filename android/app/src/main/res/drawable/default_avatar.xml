@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- android/app/src/main/res/drawable/default_avatar.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="140dp"
+    android:height="140dp"
+    android:viewportWidth="140"
+    android:viewportHeight="140">
+    
+    <!-- Градиентный круглый фон -->
+    <path
+        android:pathData="M70,70m-70,0a70,70 0,1 1,140 0a70,70 0,1 1,-140 0">
+        <aapt:attr name="android:fillColor" xmlns:aapt="http://schemas.android.com/aapt">
+            <gradient
+                android:endColor="#3949AB"
+                android:startColor="#5E35B1"
+                android:type="linear"
+                android:angle="135"/>
+        </aapt:attr>
+    </path>
+    
+    <!-- Силуэт человека -->
+    <group
+        android:translateX="35"
+        android:translateY="35">
+        
+        <!-- Голова -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M35,20 a15,15 0,1 1,0 30 a15,15 0,1 1,0 -30"/>
+        
+        <!-- Тело -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M35,45 C18,45 5,58 5,75 L5,80 L65,80 L65,75 C65,58 52,45 35,45 Z"/>
+    </group>
+</vector>

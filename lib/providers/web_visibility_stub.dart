@@ -7,5 +7,5 @@ void setupWebVisibilityListener({
   Function(bool)? onVisibilityChange,
 }) {
   // Ничего не делает - заглушка
-  print('[WebVisibility] Stub - не используется');
+  // print('[WebVisibility] Stub - не используется');
 }

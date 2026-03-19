@@ -48,19 +48,19 @@ class AppColors {
   static BoxShadow primaryShadow = BoxShadow(
     color: primaryPurple.withOpacity(0.3),
     blurRadius: 8,
-    offset: Offset(0, 4),
+    offset: const Offset(0, 4),
   );
 
   static BoxShadow cardShadow = BoxShadow(
     color: Colors.black.withOpacity(0.1),
     blurRadius: 8,
-    offset: Offset(0, 2),
+    offset: const Offset(0, 2),
   );
 
   static BoxShadow messageShadow = BoxShadow(
     color: primaryPurple.withOpacity(0.4),
     blurRadius: 8,
-    offset: Offset(0, 2),
+    offset: const Offset(0, 2),
   );
 
   // Вспомогательные методы
@@ -101,12 +101,12 @@ class AppColors {
   static LinearGradient getBackgroundGradient(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return isDark
-        ? LinearGradient(
+        ? const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [darkSurface, darkBackground],
           )
-        : LinearGradient(
+        : const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [lightBackground, lightBackgroundAlt],

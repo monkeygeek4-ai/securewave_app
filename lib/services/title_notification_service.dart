@@ -1,7 +1,5 @@
 // lib/services/title_notification_service.dart
 
-import 'package:flutter/foundation.dart';
-
 // Условный импорт - выбирает нужную реализацию в зависимости от платформы
 import 'title_notification_service_stub.dart'
     if (dart.library.html) 'title_notification_service_web.dart';

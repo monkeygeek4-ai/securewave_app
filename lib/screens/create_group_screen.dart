@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/user.dart';
 import '../providers/chat_provider.dart';
+import '../utils/image_utils.dart';
 
 class CreateGroupScreen extends StatefulWidget {
   final List<User> allUsers;
 
-  const CreateGroupScreen({Key? key, required this.allUsers}) : super(key: key);
+  const CreateGroupScreen({super.key, required this.allUsers});
 
   @override
   _CreateGroupScreenState createState() => _CreateGroupScreenState();
@@ -64,7 +65,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
     if (groupName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Введите название группы'),
           backgroundColor: Colors.orange,
         ),
@@ -74,7 +75,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
     if (_selectedUserIds.length < 2) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Выберите минимум 2 участников'),
           backgroundColor: Colors.orange,
         ),
@@ -103,10 +104,10 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         );
       }
     } catch (e) {
-      print('[CreateGroup] Ошибка создания группы: $e');
+      // print('[CreateGroup] Ошибка создания группы: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Не удалось создать группу'),
             backgroundColor: Colors.red,
           ),
@@ -123,8 +124,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Создать группу'),
-        backgroundColor: Color(0xFF2B5CE6),
+        title: const Text('Создать группу'),
+        backgroundColor: const Color(0xFF2B5CE6),
         foregroundColor: Colors.white,
         actions: [
           TextButton(
@@ -146,13 +147,13 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         children: [
           // Название группы
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             color: Colors.grey[50],
             child: TextField(
               controller: _groupNameController,
               decoration: InputDecoration(
                 hintText: 'Название группы',
-                prefixIcon: Icon(Icons.group),
+                prefixIcon: const Icon(Icons.group),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -166,25 +167,25 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
           if (selectedUsers.isNotEmpty)
             Container(
               height: 100,
-              padding: EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: selectedUsers.length,
                 itemBuilder: (context, index) {
                   final user = selectedUsers[index];
                   return Padding(
-                    padding: EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 12),
                     child: Column(
                       children: [
                         Stack(
                           children: [
                             CircleAvatar(
                               radius: 28,
-                              backgroundColor: Color(0xFF7C3AED),
+                              backgroundColor: const Color(0xFF7C3AED),
                               backgroundImage: user.avatarUrl != null &&
                                       user.avatarUrl!.isNotEmpty
-                                  ? NetworkImage(user.avatarUrl!)
+                                  ? NetworkImage(ImageUtils.getAvatarUrl(user.avatarUrl) ?? '')
                                   : null,
                               child: user.avatarUrl == null ||
                                       user.avatarUrl!.isEmpty
@@ -192,7 +193,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                                       user.username.isNotEmpty
                                           ? user.username[0].toUpperCase()
                                           : '?',
-                                      style: TextStyle(color: Colors.white),
+                                      style:
+                                          const TextStyle(color: Colors.white),
                                     )
                                   : null,
                             ),
@@ -202,12 +204,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                               child: GestureDetector(
                                 onTap: () => _toggleUserSelection(user.id),
                                 child: Container(
-                                  padding: EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
                                     color: Colors.red,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: Icon(
+                                  child: const Icon(
                                     Icons.close,
                                     size: 16,
                                     color: Colors.white,
@@ -217,7 +219,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         SizedBox(
                           width: 60,
                           child: Text(
@@ -225,7 +227,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                             textAlign: TextAlign.center,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ],
@@ -235,17 +237,17 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
               ),
             ),
 
-          Divider(height: 1),
+          const Divider(height: 1),
 
           // Поиск
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
               onChanged: _filterUsers,
               decoration: InputDecoration(
                 hintText: 'Поиск участников...',
-                prefixIcon: Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -273,24 +275,24 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                       return ListTile(
                         leading: CircleAvatar(
                           radius: 28,
-                          backgroundColor: Color(0xFF7C3AED),
+                          backgroundColor: const Color(0xFF7C3AED),
                           backgroundImage: user.avatarUrl != null &&
                                   user.avatarUrl!.isNotEmpty
                               ? NetworkImage(user.avatarUrl!)
                               : null,
-                          child:
-                              user.avatarUrl == null || user.avatarUrl!.isEmpty
-                                  ? Text(
-                                      user.username.isNotEmpty
-                                          ? user.username[0].toUpperCase()
-                                          : '?',
-                                      style: TextStyle(color: Colors.white),
-                                    )
-                                  : null,
+                          child: user.avatarUrl == null ||
+                                  user.avatarUrl!.isEmpty
+                              ? Text(
+                                  user.username.isNotEmpty
+                                      ? user.username[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(color: Colors.white),
+                                )
+                              : null,
                         ),
                         title: Text(
                           user.fullName ?? user.username,
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         subtitle: user.fullName != null
                             ? Text('@${user.username}')
@@ -298,7 +300,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                         trailing: Checkbox(
                           value: isSelected,
                           onChanged: (_) => _toggleUserSelection(user.id),
-                          activeColor: Color(0xFF7C3AED),
+                          activeColor: const Color(0xFF7C3AED),
                         ),
                         onTap: () => _toggleUserSelection(user.id),
                       );

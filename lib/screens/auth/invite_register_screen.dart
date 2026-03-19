@@ -10,7 +10,7 @@ import '../home_screen.dart';
 class InviteRegisterScreen extends StatefulWidget {
   final String? inviteCode;
 
-  const InviteRegisterScreen({Key? key, this.inviteCode}) : super(key: key);
+  const InviteRegisterScreen({super.key, this.inviteCode});
 
   @override
   _InviteRegisterScreenState createState() => _InviteRegisterScreenState();
@@ -88,7 +88,7 @@ class _InviteRegisterScreenState extends State<InviteRegisterScreen> {
         try {
           await chatProvider.loadChats();
         } catch (e) {
-          print('[InviteRegister] Ошибка загрузки чатов: $e');
+          // print('[InviteRegister] Ошибка загрузки чатов: $e');
         }
 
         if (mounted) {

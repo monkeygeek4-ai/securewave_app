@@ -36,25 +36,37 @@ class WebSocketManager {
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
 
   final List<Map<String, dynamic>> _messageQueue = [];
+  
+  // ⭐⭐⭐ НОВОЕ: Callback для получения currentChatId после авторизации
+  String? Function()? _getCurrentChatIdCallback;
 
   Stream<ConnectionStatus> get connectionStatus => _statusController.stream;
   Stream<Map<String, dynamic>> get messages => _messageController.stream;
   bool get isConnected =>
       _channel != null && _channel!.closeCode == null && _isAuthenticated;
+  String? get userId => _userId;
 
   void _log(String message) {
-    if (kDebugMode) {
-      print('[WS] $message');
-    }
+    // ⭐⭐⭐ ВКЛЮЧЕНО: Ключевые логи для отладки
+    print('[WS] $message');
   }
 
   Future<void> connect({String? token, String? userId}) async {
+    // ⭐⭐⭐ ИСПРАВЛЕНО: Проверяем не только closeCode, но и состояние соединения
     if (_channel != null && _channel!.closeCode == null) {
       _log('========================================');
       _log('Соединение уже существует и активно');
       _log('_isAuthenticated: $_isAuthenticated');
+      _log('_isConnecting: $_isConnecting');
       _log('========================================');
 
+      // Если соединение активно и авторизовано, не создаем новое
+      if (_isAuthenticated) {
+        _log('✅ Соединение уже авторизовано, не создаем новое');
+        return;
+      }
+
+      // Если соединение активно, но не авторизовано, отправляем авторизацию
       if (!_isAuthenticated && _token != null) {
         _log('Отправляем повторную авторизацию');
         await _authenticate();
@@ -144,7 +156,7 @@ class WebSocketManager {
         },
       );
 
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
 
       _log('========================================');
       _log('📤 ОТПРАВКА АВТОРИЗАЦИИ');
@@ -199,7 +211,7 @@ class WebSocketManager {
     send(authMessage);
     _log('🔐 Повторная авторизация отправлена');
 
-    Timer(Duration(seconds: 5), () {
+    Timer(const Duration(seconds: 5), () {
       if (!_isAuthenticated && _isConnecting) {
         _log('========================================');
         _log('❌ ТАЙМАУТ АВТОРИЗАЦИИ (5 секунд)');
@@ -211,6 +223,12 @@ class WebSocketManager {
 
   void _handleMessage(dynamic message) {
     try {
+      _log('========================================');
+      _log('📥 RAW MESSAGE CONTENT:');
+      _log(message.toString().substring(0,
+          message.toString().length > 500 ? 500 : message.toString().length));
+      _log('========================================');
+
       final data = json.decode(message.toString());
       final msgType = data['type'];
 
@@ -356,21 +374,50 @@ class WebSocketManager {
           break;
 
         case 'call_answer':
-          _log('📞 Ответ на звонок получен');
+          _log('========================================');
+          _log('========================================');
+          _log('🔥🔥🔥 CALL_ANSWER ПОЛУЧЕН ЧЕРЕЗ WEBSOCKET!');
+          _log('========================================');
+          _log('callId: ${data['callId']}');
+          _log('answer exists: ${data['answer'] != null}');
+
+          if (data['answer'] != null) {
+            final answer = data['answer'] as Map<String, dynamic>;
+            _log('answer.sdp exists: ${answer['sdp'] != null}');
+            _log('answer.type: ${answer['type']}');
+            if (answer['sdp'] != null) {
+              _log('answer.sdp size: ${answer['sdp'].toString().length} bytes');
+            }
+          }
+
+          _log('========================================');
+          _log('📤 ПЕРЕДАЕМ В MESSAGE CONTROLLER');
+          _log('========================================');
+
           _messageController.add({
             'type': 'call_answer',
             'callId': data['callId'],
             'answer': data['answer'],
           });
+
+          _log('========================================');
+          _log('✅✅✅ CALL_ANSWER ДОБАВЛЕН В MESSAGE CONTROLLER!');
+          _log('========================================');
           break;
 
         case 'call_ice_candidate':
-          _log('🧊 ICE кандидат получен');
+          _log('========================================');
+          _log('🧊🧊🧊 ICE CANDIDATE RECEIVED!');
+          _log('Call ID: ${data['callId']}');
+          _log('Candidate: ${data['candidate']}');
+          _log('📤 Adding to message controller...');
+          _log('========================================');
           _messageController.add({
             'type': 'call_ice_candidate',
             'callId': data['callId'],
             'candidate': data['candidate'],
           });
+          _log('✅ ICE candidate added to controller');
           break;
 
         case 'call_ended':
@@ -400,6 +447,34 @@ class WebSocketManager {
             'callId': data['callId'],
             'error': data['error'],
             'message': data['message'],
+          });
+          break;
+
+        case 'call_connected':
+          _log('========================================');
+          _log('✅✅✅ CALL_CONNECTED ПОЛУЧЕН ЧЕРЕЗ WEBSOCKET!');
+          _log('========================================');
+          _log('callId: ${data['callId']}');
+          _log('timestamp: ${data['timestamp']}');
+          _log('========================================');
+          _log('📤 ПЕРЕДАЕМ В MESSAGE CONTROLLER');
+          _log('========================================');
+          _messageController.add({
+            'type': 'call_connected',
+            'callId': data['callId'],
+            'timestamp': data['timestamp'],
+          });
+          _log('========================================');
+          _log('✅✅✅ CALL_CONNECTED ДОБАВЛЕН В MESSAGE CONTROLLER!');
+          _log('========================================');
+          break;
+
+        case 'call_heartbeat':
+          _log('💓 Heartbeat получен для callId: ${data['callId']}');
+          _messageController.add({
+            'type': 'call_heartbeat',
+            'callId': data['callId'],
+            'timestamp': data['timestamp'],
           });
           break;
 
@@ -450,16 +525,34 @@ class WebSocketManager {
     _log('Connection Status: CONNECTED');
     _log('========================================');
     _log('========================================');
+    _log('⏳ Ожидаем pending звонки от сервера...');
+    _log('Сервер должен отправить call_offer для активных звонков');
+    _log('========================================');
 
     _statusController.add(ConnectionStatus.connected);
 
     _sendQueuedMessages();
     _startPingTimer();
 
+    // ⭐⭐⭐ КРИТИЧНО: Отправляем join_chat СРАЗУ после авторизации, если чат открыт
+    // Это нужно для восстановления currentChatId на backend после переподключения
+    if (_getCurrentChatIdCallback != null) {
+      final currentChatId = _getCurrentChatIdCallback!();
+      if (currentChatId != null && currentChatId.isNotEmpty) {
+        _log('🔄 Переподключение: отправляем join_chat СРАЗУ для чата: $currentChatId');
+        joinChat(currentChatId);
+      }
+    }
+
     _messageController.add({
       'type': 'auth_success',
       'userId': _userId,
     });
+  }
+  
+  // ⭐⭐⭐ НОВОЕ: Устанавливаем callback для получения currentChatId
+  void setCurrentChatIdCallback(String? Function()? callback) {
+    _getCurrentChatIdCallback = callback;
   }
 
   void _handleAuthError(Map<String, dynamic> data) {
@@ -530,6 +623,16 @@ class WebSocketManager {
       final message = json.encode(data);
       _channel!.sink.add(message);
       _log('↑ Отправлено: ${data['type']}');
+      
+      // ⭐⭐⭐ КРИТИЧНО: Для join_chat добавляем небольшую задержку после отправки
+      // Это дает время backend обработать сообщение до получения новых сообщений
+      if (data['type'] == 'join_chat') {
+        _log('⏳ join_chat отправлен, даем время на обработку...');
+        // Небольшая задержка не блокирует выполнение, но дает время на обработку
+        Future.delayed(const Duration(milliseconds: 50), () {
+          _log('✅ Задержка после join_chat завершена');
+        });
+      }
     } catch (e) {
       _log('❌ Ошибка отправки: $e');
       if (data['type'] != 'auth') {
@@ -578,10 +681,41 @@ class WebSocketManager {
   }
 
   void joinChat(String chatId) {
-    send({
-      'type': 'join_chat',
-      'chatId': chatId,
-    });
+    // ⭐⭐⭐ КРИТИЧНО: Отправляем join_chat с приоритетом (сразу, без очереди)
+    // Это нужно для того, чтобы backend получил currentChatId ДО обработки новых сообщений
+    if (_channel == null || _channel!.closeCode != null) {
+      _log('⚠️ WebSocket канал не готов, добавляем join_chat в очередь');
+      _messageQueue.add({
+        'type': 'join_chat',
+        'chatId': chatId,
+      });
+      return;
+    }
+
+    if (!_isAuthenticated) {
+      _log('⚠️ Не авторизован, добавляем join_chat в очередь');
+      _messageQueue.add({
+        'type': 'join_chat',
+        'chatId': chatId,
+      });
+      return;
+    }
+
+    try {
+      // ⭐⭐⭐ КРИТИЧНО: Отправляем СРАЗУ, без задержек
+      final message = json.encode({
+        'type': 'join_chat',
+        'chatId': chatId,
+      });
+      _channel!.sink.add(message);
+      _log('↑ Отправлено: join_chat для чата: $chatId');
+    } catch (e) {
+      _log('❌ Ошибка отправки join_chat: $e');
+      _messageQueue.add({
+        'type': 'join_chat',
+        'chatId': chatId,
+      });
+    }
   }
 
   void leaveChat(String chatId) {
@@ -611,10 +745,25 @@ class WebSocketManager {
     _log('📤 ОТПРАВКА CALL_OFFER');
     _log('callId: $callId');
     _log('chatId: $chatId');
-    _log('receiverId: $receiverId');
+    _log('receiverId: "$receiverId" (тип: ${receiverId.runtimeType})');
     _log('callType: $callType');
     _log('Has offer: ${offer.isNotEmpty}');
     _log('Offer keys: ${offer.keys.toList()}');
+    
+    // ⭐⭐⭐ КРИТИЧНО: Проверяем что не звоним сами себе
+    final currentUserId = _userId;
+    _log('currentUserId: "$currentUserId" (тип: ${currentUserId?.runtimeType})');
+    if (currentUserId != null) {
+      final cleanReceiverId = receiverId.trim();
+      final cleanCurrentUserId = currentUserId.trim();
+      _log('Сравнение: "$cleanReceiverId" == "$cleanCurrentUserId" = ${cleanReceiverId == cleanCurrentUserId}');
+      if (cleanReceiverId == cleanCurrentUserId) {
+        _log('❌❌❌ ОШИБКА: Попытка позвонить самому себе!');
+        _log('Звонок НЕ будет отправлен!');
+        _log('========================================');
+        return;
+      }
+    }
     _log('========================================');
 
     final message = {
@@ -636,7 +785,15 @@ class WebSocketManager {
     _log('========================================');
     _log('📤 ОТПРАВКА CALL_ANSWER');
     _log('callId: $callId');
+    _log('Answer type: ${answer['type']}');
+    _log('Answer SDP size: ${answer['sdp']?.toString().length ?? 0} bytes');
+    _log('WebSocket подключен: $isConnected');
     _log('========================================');
+
+    if (!isConnected) {
+      _log('❌❌❌ WebSocket НЕ подключен! call_answer НЕ будет отправлен!');
+      return;
+    }
 
     send({
       'type': 'call_answer',
@@ -644,7 +801,8 @@ class WebSocketManager {
       'answer': answer,
     });
 
-    _log('✅ call_answer отправлен');
+    _log('✅✅✅ call_answer отправлен через WebSocket');
+    _log('========================================');
   }
 
   void sendIceCandidate(String callId, Map<String, dynamic> candidate) {

@@ -35,3 +35,11 @@ Thumbs.db
 # Временные файлы
 *.tmp
 *.temp
+
+# Android keystore и ключи подписи
+android/key.properties
+android/*.jks
+android/*.keystore
+android/securewave-release-key.jks
+*.jks
+*.keystore

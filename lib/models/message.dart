@@ -42,7 +42,15 @@ class Message {
 
   String? get callType => metadata?['callType'];
 
+  // ⭐⭐⭐ ИЗМЕНЕНО: callStatus теперь вычисляется динамически в UI
+  // Для обратной совместимости оставляем геттер, но он может быть null для новых сообщений
   String? get callStatus => metadata?['callStatus'];
+  
+  // ⭐ НОВОЕ: ID инициатора звонка
+  String? get callInitiatorId => metadata?['initiatorId'];
+  
+  // ⭐ НОВОЕ: Результат звонка (completed, missed, rejected, cancelled)
+  String? get callResult => metadata?['callResult'];
 
   int? get callDuration => metadata?['callDuration'];
 
@@ -54,10 +62,12 @@ class Message {
         parsedMetadata = Map<String, dynamic>.from(json['metadata']);
       } else if (json['metadata'] is String) {
         try {
-          parsedMetadata =
-              Map<String, dynamic>.from(jsonDecode(json['metadata']));
+          final decoded = jsonDecode(json['metadata'] as String);
+          if (decoded is Map) {
+            parsedMetadata = Map<String, dynamic>.from(decoded);
+          }
         } catch (e) {
-          print('[Message] Ошибка парсинга metadata: $e');
+          // print('[Message.fromJson] ❌ Ошибка парсинга metadata: $e');
         }
       }
     }
@@ -143,12 +153,14 @@ class Message {
   }
 
   // Фабричный метод для создания сообщения о звонке
+  // ⭐⭐⭐ ИЗМЕНЕНО: Теперь сохраняем initiatorId и callResult вместо callStatus
+  // callStatus будет определяться в UI на основе того, является ли текущий пользователь инициатором
   factory Message.createCallMessage({
     required String chatId,
     required String senderId,
     required String callType, // 'audio' или 'video'
-    required String
-        callStatus, // 'incoming', 'outgoing', 'missed', 'rejected', 'cancelled'
+    required String initiatorId, // ID пользователя, который инициировал звонок
+    required String callResult, // 'completed', 'missed', 'rejected', 'cancelled'
     int? callDuration,
   }) {
     return Message(
@@ -160,7 +172,8 @@ class Message {
       timestamp: DateTime.now().toIso8601String(),
       metadata: {
         'callType': callType,
-        'callStatus': callStatus,
+        'initiatorId': initiatorId, // ⭐ НОВОЕ: ID инициатора звонка
+        'callResult': callResult, // ⭐ НОВОЕ: Результат звонка (completed, missed, rejected, cancelled)
         'callDuration': callDuration,
       },
     );

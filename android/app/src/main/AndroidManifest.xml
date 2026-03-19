@@ -1,49 +1,108 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Разрешения для интернета -->
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.securewave.app">
+
+    <!-- ========================= -->
+    <!-- БАЗОВЫЕ РАЗРЕШЕНИЯ -->
+    <!-- ========================= -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     
-    <!-- Разрешения для камеры и микрофона -->
+    <!-- ========================= -->
+    <!-- ЗВОНКИ (ОБЯЗАТЕЛЬНЫЕ) -->
+    <!-- ========================= -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     
-    <!-- Разрешения для файлов -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- ========================= -->
+    <!-- WAKELOCK & SCREEN -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    
+    <!-- ========================= -->
+    <!-- CONNECTION SERVICE (Для интеграции с системным телефоном) -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.BIND_TELECOM_CONNECTION_SERVICE"/>
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
+    
+    <!-- ========================= -->
+    <!-- FOREGROUND SERVICE -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    
+    <!-- ========================= -->
+    <!-- УВЕДОМЛЕНИЯ -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    
+    <!-- ========================= -->
+    <!-- ФОНОВАЯ РАБОТА (Критично!) -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.QUICKBOOT_POWERON"/>
+    
+    <!-- ========================= -->
+    <!-- SYSTEM ALERT (Опционально) -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    
+    <!-- ========================= -->
+    <!-- PHONE STATE (Для приоритета звонков) -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.READ_PHONE_NUMBERS"/>
+    
+    <!-- ========================= -->
+    <!-- СОХРАНЕНИЕ ФАЙЛОВ -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <!-- Для Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
     
-    <!-- Разрешения для уведомлений -->
-    <uses-permission android:name="android.permission.VIBRATE"/>
-    <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
-    
-    <!-- Разрешения для lockscreen -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"/>
-    <uses-permission android:name="android.permission.SHOW_WHEN_LOCKED"/>
-    <uses-permission android:name="android.permission.TURN_SCREEN_ON"/>
-    
-    <!-- Разрешения для фоновой работы -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
-    
-    <!-- Особенности устройства -->
+    <!-- ========================= -->
+    <!-- ОПЦИОНАЛЬНО: Для улучшения качества -->
+    <!-- ========================= -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"/>
+
+    <!-- ========================= -->
+    <!-- FEATURES -->
+    <!-- ========================= -->
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false"/>
+    <uses-feature android:name="android.hardware.telephony" android:required="false"/>
 
     <application
-        android:label="SecureWave"
         android:name="${applicationName}"
+        android:label="SecureWave"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
         android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
-        
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        tools:replace="android:label">
+
+        <!-- ========================= -->
+        <!-- MAIN ACTIVITY -->
+        <!-- ========================= -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -52,70 +111,153 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true">
+            android:screenOrientation="unspecified">
             
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"/>
             
+            <!-- Launcher -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
+            <!-- FCM notification click -->
             <intent-filter>
                 <action android:name="FLUTTER_NOTIFICATION_CLICK"/>
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
+            
+            <!-- Deep links -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="securewave" android:host="call"/>
+            </intent-filter>
         </activity>
-        
-        <!-- CallActivity -->
+
+        <!-- ========================= -->
+        <!-- CALL ACTIVITY -->
+        <!-- ========================= -->
         <activity
             android:name=".CallActivity"
             android:exported="false"
-            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/CallActivityTheme"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
+            android:screenOrientation="portrait"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:excludeFromRecents="true"
-            android:launchMode="singleInstance"
-            android:screenOrientation="portrait"
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize" />
-        
-        <!-- ⭐⭐⭐ КРИТИЧНО: FCM Service с ВЫСОКИМ приоритетом -->
+            android:supportsPictureInPicture="false"
+            android:allowEmbedded="false"
+            android:resizeableActivity="false">
+        </activity>
+
+        <!-- ========================= -->
+        <!-- CONNECTION SERVICE -->
+        <!-- ⭐ VoIP ConnectionService для интеграции с системным телефоном (аналог CallKit) -->
+        <!-- ========================= -->
         <service
-            android:name=".MyFirebaseMessagingService"
-            android:exported="false"
-            android:directBootAware="true">
-            <intent-filter android:priority="999">
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            android:name=".VoIPConnectionService"
+            android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.telecom.ConnectionService"/>
             </intent-filter>
         </service>
-        
-        <!-- CallService -->
+
+        <!-- ========================= -->
+        <!-- CALL LAUNCHER SERVICE -->
+        <!-- ⭐ Простой service для запуска CallActivity (обход BAL) -->
+        <!-- ========================= -->
+        <service
+            android:name=".CallLauncherService"
+            android:enabled="true"
+            android:exported="false">
+        </service>
+
+        <!-- ========================= -->
+        <!-- CALL SERVICE (Закомментирован - не используется) -->
+        <!-- ========================= -->
+        <!--
         <service
             android:name=".CallService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="phoneCall" />
-        
-        <!-- Метаданные Flutter -->
+            android:stopWithTask="false">
+        </service>
+        -->
+
+        <!-- ========================= -->
+        <!-- FCM SERVICE -->
+        <!-- ========================= -->
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:enabled="true"
+            android:exported="false"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+
+        <!-- ========================= -->
+        <!-- CALL ACTION RECEIVER -->
+        <!-- ⭐ BroadcastReceiver для обработки действий из уведомлений (Отклонить/Принять) -->
+        <!-- ========================= -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.securewave.app.DECLINE_CALL"/>
+                <action android:name="com.securewave.app.ANSWER_CALL"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- ========================= -->
+        <!-- BOOT RECEIVER (Закомментирован - не используется) -->
+        <!-- ========================= -->
+        <!--
+        <receiver
+            android:name=".BootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+        -->
+
+        <!-- ========================= -->
+        <!-- FLUTTER ENGINE -->
+        <!-- ========================= -->
         <meta-data
             android:name="flutterEmbedding"
-            android:value="2" />
-        
-        <!-- FCM метаданные -->
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="calls_channel" />
-        
+            android:value="2"/>
+
+        <!-- ========================= -->
+        <!-- FCM CONFIGURATION -->
+        <!-- ========================= -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_notification" />
+            android:resource="@mipmap/ic_launcher"/>
         
         <meta-data
-            android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/notification_color" />
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="calls_channel"/>
+        
+        <!-- High priority messages -->
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version"/>
+
     </application>
 </manifest>

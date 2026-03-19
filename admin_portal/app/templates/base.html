@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SecureWave Админ{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#7C3AED',
+                        secondary: '#5B21B6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .sidebar-link.active {
+            background-color: rgba(124, 58, 237, 0.1);
+            border-left: 3px solid #7C3AED;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        {% if admin %}
+        <aside class="w-64 bg-white shadow-lg">
+            <div class="p-6 border-b">
+                <h1 class="text-xl font-bold text-primary">SecureWave</h1>
+                <p class="text-sm text-gray-500">Панель администратора</p>
+            </div>
+            <nav class="p-4">
+                <a href="/dashboard" class="sidebar-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg mb-2 {% if request.url.path == '/dashboard' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    Главная
+                </a>
+                <a href="/reports" class="sidebar-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg mb-2 {% if request.url.path == '/reports' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    Жалобы
+                    <span id="pending-badge" class="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full hidden">0</span>
+                </a>
+                <a href="/users" class="sidebar-link flex items-center px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg mb-2 {% if request.url.path == '/users' %}active{% endif %}">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    Пользователи
+                </a>
+            </nav>
+            <div class="absolute bottom-0 w-64 p-4 border-t bg-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-medium text-gray-700">{{ admin.sub }}</p>
+                        <p class="text-sm text-gray-500">{{ admin.role }}</p>
+                    </div>
+                    <a href="/auth/logout" class="text-gray-500 hover:text-red-500" title="Выйти">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </aside>
+        {% endif %}
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,290 @@
+<?php
+// backend/lib/PushNotificationService.php
+
+require_once __DIR__ . '/FirebaseAdmin.php';
+
+class PushNotificationService {
+    private $db;
+    private $firebaseAdmin;
+    
+    public function __construct() {
+        $this->db = Database::getInstance();
+        $this->firebaseAdmin = new FirebaseAdmin();
+    }
+    
+    public function sendNewMessageNotification($userId, $chatId, $senderName, $messageText, $senderAvatar = null) {
+        error_log("========================================");
+        error_log("📨 PushNotificationService::sendNewMessageNotification");
+        error_log("  userId: $userId");
+        error_log("  chatId: $chatId");
+        error_log("  senderName: $senderName");
+        error_log("========================================");
+
+        $tokens = $this->getUserTokens($userId);
+
+        error_log("📋 Tokens retrieved: " . count($tokens));
+        foreach ($tokens as $idx => $row) {
+            $token = is_array($row) ? $row['token'] : $row;
+            $platform = is_array($row) ? ($row['platform'] ?? 'android') : 'android';
+            error_log("  Token $idx: " . substr($token, 0, 30) . "... (platform: $platform)");
+        }
+
+        if (empty($tokens)) {
+            error_log("❌ No FCM tokens found for user: $userId");
+            return false;
+        }
+
+        $notification = array(
+            'title' => $senderName,
+            'body' => $this->truncateText($messageText, 100)
+        );
+
+        $data = array(
+            'type' => 'new_message',
+            'chatId' => $chatId,
+            'senderName' => $senderName,
+            'messageText' => $messageText,
+            'senderAvatar' => $senderAvatar ? $senderAvatar : '',
+            'timestamp' => strval(time())
+        );
+
+        error_log("📤 Calling sendToTokens...");
+        $result = $this->sendToTokens($tokens, $notification, $data);
+        error_log("📊 sendToTokens result: " . ($result ? 'true' : 'false'));
+        error_log("========================================");
+
+        return $result;
+    }
+    
+    /**
+     * ⭐⭐⭐ ИСПРАВЛЕНО: Отправка уведомлений с учетом платформы
+     */
+    private function sendToTokens($tokens, $notification = null, $data = null, $highPriority = false) {
+        if (empty($tokens)) {
+            return false;
+        }
+        
+        $success = 0;
+        $failure = 0;
+        
+        foreach ($tokens as $tokenRow) {
+            try {
+                // Определяем токен и платформу
+                $token = is_array($tokenRow) ? $tokenRow['token'] : $tokenRow;
+                $platform = is_array($tokenRow) ? ($tokenRow['platform'] ?? 'android') : 'android';
+                
+                // Конвертируем все значения data в строки
+                $dataPayloadStr = array();
+                if ($data) {
+                    foreach ($data as $key => $value) {
+                        $dataPayloadStr[$key] = strval($value);
+                    }
+                }
+                
+                // ⭐⭐⭐ ИСПРАВЛЕНО: Используем правильный метод для каждого типа
+                $result = false;
+                
+                if (isset($dataPayloadStr['type']) && $dataPayloadStr['type'] === 'new_message') {
+                    // Для сообщений используем sendMessageNotification
+                    $result = $this->firebaseAdmin->sendMessageNotification($token, [
+                        'chatId' => $dataPayloadStr['chatId'] ?? '',
+                        'senderName' => $dataPayloadStr['senderName'] ?? 'Unknown',
+                        'messageText' => $dataPayloadStr['messageText'] ?? '',
+                        'senderAvatar' => $dataPayloadStr['senderAvatar'] ?? '',
+                    ]);
+                } else {
+                    // Для других типов используем старый метод
+                    $result = $this->firebaseAdmin->sendNotification(
+                        $token,
+                        $notification,
+                        $dataPayloadStr
+                    );
+                }
+                
+                if ($result) {
+                    $success++;
+                    error_log("✅ FCM sent to token: " . substr($token, 0, 20) . "... (platform: $platform)");
+                } else {
+                    $failure++;
+                    error_log("❌ FCM failed for token: " . substr($token, 0, 20) . "... (platform: $platform)");
+                    // ⭐ НЕ УДАЛЯЕМ ТОКЕН! Просто логируем ошибку
+                    error_log("⚠️ Ошибка отправки, но токен сохраняем для повторных попыток");
+                }
+            } catch (Exception $e) {
+                $token = is_array($tokenRow) ? $tokenRow['token'] : $tokenRow;
+                $errorMessage = $e->getMessage();
+                error_log("❌ FCM Exception for token " . substr($token, 0, 20) . "...: " . $errorMessage);
+                $failure++;
+                
+                // ⭐ УДАЛЯЕМ если явная ошибка UNREGISTERED
+                if (strpos($errorMessage, 'UNREGISTERED') !== false) {
+                    error_log("🗑️ Токен UNREGISTERED - удаляем из БД: " . substr($token, 0, 20) . "...");
+                    $this->removeInvalidToken($token);
+                } else {
+                    error_log("⚠️ Другая ошибка, токен сохраняем для повторных попыток");
+                }
+            }
+        }
+        
+        error_log("📊 FCM Results: {$success} sent, {$failure} failed");
+        
+        return $success > 0;
+    }
+    
+    /**
+     * ✅ ИСПРАВЛЕНО: Специальный формат для Android звонков
+     */
+    public function sendIncomingCallNotification($userId, $callId, $callerName, $callType, $callerAvatar = null) {
+        $tokens = $this->getUserTokens($userId);
+        
+        if (empty($tokens)) {
+            error_log("No FCM tokens found for user: $userId");
+            return false;
+        }
+        
+        // ⭐⭐⭐ ИСПРАВЛЕНО: Используем правильный метод для каждого токена с учетом платформы
+        $success = 0;
+        $failure = 0;
+        
+        foreach ($tokens as $tokenRow) {
+            $token = is_array($tokenRow) ? $tokenRow['token'] : $tokenRow;
+            $platform = is_array($tokenRow) ? ($tokenRow['platform'] ?? 'android') : 'android';
+            $voipToken = is_array($tokenRow) ? ($tokenRow['voip_token'] ?? null) : null;
+            
+            try {
+                $result = $this->firebaseAdmin->sendCallNotification(
+                    $platform,
+                    $token,
+                    $voipToken,
+                    [
+                        'callId' => $callId,
+                        'callerName' => $callerName,
+                        'callType' => $callType,
+                        'callerAvatar' => $callerAvatar ? $callerAvatar : '',
+                    ]
+                );
+                
+                if ($result) {
+                    $success++;
+                    error_log("✅ Call notification sent to platform: $platform");
+                } else {
+                    $failure++;
+                    error_log("❌ Call notification failed for platform: $platform");
+                }
+            } catch (Exception $e) {
+                $token = is_array($tokenRow) ? $tokenRow['token'] : $tokenRow;
+                $errorMessage = $e->getMessage();
+                error_log("❌ Exception sending call notification: " . $errorMessage);
+                $failure++;
+                
+                // ⭐ УДАЛЯЕМ если явная ошибка UNREGISTERED
+                if (strpos($errorMessage, 'UNREGISTERED') !== false) {
+                    error_log("🗑️ Токен UNREGISTERED - удаляем из БД: " . substr($token, 0, 20) . "...");
+                    $this->removeInvalidToken($token);
+                }
+            }
+        }
+        
+        return $success > 0;
+    }
+    
+    public function sendCallEndedNotification($userId, $callId) {
+        // Для call_ended используем простой метод без платформы
+        $tokens = $this->getUserTokensSimple($userId);
+        
+        if (empty($tokens)) {
+            return false;
+        }
+        
+        $data = array(
+            'type' => 'call_ended',
+            'callId' => $callId,
+            'action' => 'cancel_notification',
+            'timestamp' => strval(time())
+        );
+        
+        // Используем старый метод sendNotification для простоты
+        $success = 0;
+        foreach ($tokens as $token) {
+            if ($this->firebaseAdmin->sendNotification($token, null, $data)) {
+                $success++;
+            }
+        }
+        
+        return $success > 0;
+    }
+    
+    private function getUserTokens($userId) {
+        $results = $this->db->fetchAll(
+            "SELECT token, platform, voip_token FROM fcm_tokens 
+             WHERE user_id = :user_id 
+             AND COALESCE(updated_at, created_at, CURRENT_TIMESTAMP) > CURRENT_TIMESTAMP - INTERVAL '90 days'"
+            ,
+            array('user_id' => $userId)
+        );
+        return $results;
+    }
+
+    }
+    
+    /**
+     * ⭐⭐⭐ НОВОЕ: Старый метод для обратной совместимости
+     * Возвращает только токены (без платформы)
+     */
+    private function getUserTokensSimple($userId) {
+        $results = $this->getUserTokens($userId);
+        $tokens = array();
+        foreach ($results as $row) {
+            $tokens[] = $row['token'];
+        }
+        return $tokens;
+    }
+    
+    private function removeInvalidToken($token) {
+        try {
+            error_log("🔍 Attempting to delete token: " . substr($token, 0, 30) . "...");
+            error_log("   Token length: " . strlen($token));
+            
+            // Проверяем, существует ли токен перед удалением
+            $existing = $this->db->fetchOne(
+                "SELECT id, user_id, token FROM fcm_tokens WHERE token = :token LIMIT 1",
+                array('token' => $token)
+            );
+            
+            if ($existing) {
+                error_log("   Found token in DB: ID=" . $existing['id'] . ", user_id=" . $existing['user_id']);
+            } else {
+                error_log("   ⚠️ Token not found in DB before deletion");
+                return; // Токен уже удален или не существует
+            }
+            
+            // Используем RETURNING для PostgreSQL, чтобы убедиться, что удаление произошло
+            $deleted = $this->db->fetchAll(
+                "DELETE FROM fcm_tokens WHERE token = :token RETURNING id, user_id",
+                array('token' => $token)
+            );
+            
+            if (!empty($deleted)) {
+                $deletedCount = count($deleted);
+                error_log("✅ Successfully removed invalid FCM token: " . substr($token, 0, 20) . "... (deleted $deletedCount row(s))");
+                foreach ($deleted as $row) {
+                    error_log("   Deleted: ID=" . $row['id'] . ", user_id=" . $row['user_id']);
+                }
+            } else {
+                error_log("⚠️ DELETE executed but no rows affected for token: " . substr($token, 0, 20) . "...");
+            }
+        } catch (Exception $e) {
+            error_log("❌ Error removing invalid token: " . $e->getMessage());
+            error_log("   Token: " . substr($token, 0, 30) . "...");
+            error_log("   Stack trace: " . $e->getTraceAsString());
+        }
+    }
+    
+    private function truncateText($text, $length = 100) {
+        if (mb_strlen($text) <= $length) {
+            return $text;
+        }
+        
+        return mb_substr($text, 0, $length - 3) . '...';
+    }
+}

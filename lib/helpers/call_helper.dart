@@ -1,16 +1,17 @@
 // lib/helpers/call_helper.dart
+// ⭐ ТОЛЬКО УТИЛИТЫ для работы со звонками
+// CallHandler находится в main.dart!
 
 import 'package:flutter/material.dart';
 
 class CallHelper {
   /// Определяет текст статуса звонка
   static String getCallStatusText({
-    required String direction, // 'incoming' или 'outgoing'
-    required String status, // 'ended', 'declined', 'missed', 'cancelled'
+    required String direction,
+    required String status,
     String? endReason,
   }) {
     if (direction == 'outgoing') {
-      // Исходящие звонки
       switch (status) {
         case 'ended':
           return 'Исходящий звонок';
@@ -24,7 +25,6 @@ class CallHelper {
           return 'Исходящий звонок';
       }
     } else {
-      // Входящие звонки
       switch (status) {
         case 'ended':
           return 'Входящий звонок';
@@ -42,13 +42,11 @@ class CallHelper {
   static IconData getCallStatusIcon({
     required String direction,
     required String status,
-    required String callType, // 'audio' или 'video'
+    required String callType,
   }) {
-    // Базовая иконка в зависимости от типа звонка
     final bool isVideo = callType == 'video';
 
     if (direction == 'outgoing') {
-      // Исходящие звонки
       switch (status) {
         case 'ended':
           return isVideo ? Icons.video_call : Icons.call_made;
@@ -60,7 +58,6 @@ class CallHelper {
           return isVideo ? Icons.video_call : Icons.call_made;
       }
     } else {
-      // Входящие звонки
       switch (status) {
         case 'ended':
           return isVideo ? Icons.video_call : Icons.call_received;
@@ -115,11 +112,11 @@ class CallHelper {
     final secs = seconds % 60;
 
     if (hours > 0) {
-      return '${hours}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+      return '$hours:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
     } else if (minutes > 0) {
-      return '${minutes}:${secs.toString().padLeft(2, '0')}';
+      return '$minutes:${secs.toString().padLeft(2, '0')}';
     } else {
-      return '${secs}с';
+      return '$secsс';
     }
   }
 
@@ -131,42 +128,34 @@ class CallHelper {
   /// Определяет статус на основе данных из БД
   static String determineCallStatus({
     required String direction,
-    required String
-        dbStatus, // статус из БД: 'pending', 'active', 'ended', 'declined'
+    required String dbStatus,
     String? endReason,
     int? duration,
   }) {
-    // Если звонок был отклонен
     if (dbStatus == 'declined') {
       return 'declined';
     }
 
-    // Если звонок завершился
     if (dbStatus == 'ended') {
-      // Проверяем причину завершения
       if (endReason == 'timeout' || endReason == 'no_answer') {
-        return 'missed'; // Пропущенный
+        return 'missed';
       }
 
       if (endReason == 'cancelled' || endReason == 'caller_cancelled') {
-        return 'cancelled'; // Отменен инициатором
+        return 'cancelled';
       }
 
-      // Если была длительность - значит разговор состоялся
       if (duration != null && duration > 0) {
-        return 'ended'; // Успешный звонок
+        return 'ended';
       }
 
-      // Если нет длительности и входящий - пропущенный
       if (direction == 'incoming') {
         return 'missed';
       }
 
-      // Если исходящий без длительности - не ответили
       return 'cancelled';
     }
 
-    // По умолчанию
     return dbStatus;
   }
 }

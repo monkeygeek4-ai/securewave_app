@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 import 'package:intl/intl.dart';
 
 class InvitesScreen extends StatefulWidget {
-  const InvitesScreen({Key? key}) : super(key: key);
+  const InvitesScreen({super.key});
 
   @override
   _InvitesScreenState createState() => _InvitesScreenState();
@@ -40,7 +40,7 @@ class _InvitesScreenState extends State<InvitesScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('Error loading invites: $e');
+      // print('Error loading invites: $e');
       setState(() => _isLoading = false);
     }
   }

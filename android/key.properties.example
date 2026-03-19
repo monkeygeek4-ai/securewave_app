@@ -1,0 +1,20 @@
+# ⭐⭐⭐ ПРИМЕР ФАЙЛА key.properties
+# Скопируйте этот файл в key.properties и заполните своими данными
+
+# Пароль для keystore (тот, который вы указали при создании keystore)
+storePassword=ваш_пароль_keystore
+
+# Пароль для ключа (обычно тот же, что и storePassword)
+keyPassword=ваш_пароль_alias
+
+# Алиас ключа (тот, который вы указали при создании keystore, обычно "securewave")
+keyAlias=securewave
+
+# Путь к keystore файлу (относительно android/ директории)
+storeFile=securewave-release-key.jks
+
+# ⚠️ ВАЖНО:
+# 1. НЕ коммитьте key.properties в Git!
+# 2. Добавьте key.properties и *.jks в .gitignore
+# 3. Храните keystore в безопасном месте
+

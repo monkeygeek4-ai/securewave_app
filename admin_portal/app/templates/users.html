@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи - SecureWave Админ{% endblock %}
+
+{% block content %}
+<div class="p-8">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Пользователи</h1>
+            <p class="text-gray-500">Управление аккаунтами пользователей</p>
+        </div>
+        <div class="flex gap-2">
+            <input type="text" id="searchInput" placeholder="Поиск пользователей..."
+                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                onkeyup="searchUsers()">
+            <select id="banFilter" onchange="filterUsers()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="">Все пользователи</option>
+                <option value="banned">Заблокированные</option>
+                <option value="active">Активные</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Пользователь</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жалобы</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Регистрация</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for user in users %}
+                <tr class="hover:bg-gray-50 user-row" data-banned="{{ 'true' if user.is_banned else 'false' }}" data-username="{{ user.username|lower }}" data-email="{{ user.email|lower }}">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                                <span class="text-purple-600 font-semibold">{{ user.username[0]|upper }}</span>
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">{{ user.username }}</div>
+                                <div class="text-sm text-gray-500">{{ user.full_name or '' }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{{ user.email }}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            {% if user.is_banned %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Заблокирован</span>
+                            {% elif user.is_online %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Онлайн</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Оффлайн</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if user.report_count > 0 %}
+                        <span class="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800">{{ user.report_count }} жалоб</span>
+                        {% else %}
+                        <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{{ user.created_at }}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex gap-2">
+                            <button onclick="viewUser({{ user.id }})" class="text-purple-600 hover:text-purple-800" title="Просмотр">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                            </button>
+                            {% if user.is_banned %}
+                            <button onclick="unbanUser({{ user.id }})" class="text-green-600 hover:text-green-800" title="Разблокировать">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </button>
+                            {% else %}
+                            <button onclick="openBanModal({{ user.id }}, '{{ user.username }}')" class="text-red-600 hover:text-red-800" title="Заблокировать">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        Пользователи не найдены
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Ban Modal -->
+<div id="banModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Заблокировать пользователя</h3>
+            <button onclick="closeBanModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <p class="text-gray-600 mb-4">Блокировка пользователя: <strong id="banUsername"></strong></p>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Причина</label>
+            <textarea id="banReason" rows="3" required
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                placeholder="Введите причину блокировки..."></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Срок</label>
+            <select id="banDuration" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="">Навсегда</option>
+                <option value="1">1 день</option>
+                <option value="7">7 дней</option>
+                <option value="30">30 дней</option>
+                <option value="90">90 дней</option>
+            </select>
+        </div>
+
+        <div class="flex gap-3">
+            <button onclick="closeBanModal()" class="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300">
+                Отмена
+            </button>
+            <button onclick="submitBan()" class="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                Заблокировать
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentBanUserId = null;
+
+function searchUsers() {
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+
+    rows.forEach(row => {
+        const username = row.dataset.username;
+        const email = row.dataset.email;
+        if (username.includes(search) || email.includes(search)) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function filterUsers() {
+    const filter = document.getElementById('banFilter').value;
+    const rows = document.querySelectorAll('.user-row');
+
+    rows.forEach(row => {
+        const isBanned = row.dataset.banned === 'true';
+        if (!filter) {
+            row.style.display = '';
+        } else if (filter === 'banned' && isBanned) {
+            row.style.display = '';
+        } else if (filter === 'active' && !isBanned) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function openBanModal(userId, username) {
+    currentBanUserId = userId;
+    document.getElementById('banUsername').textContent = username;
+    document.getElementById('banModal').classList.remove('hidden');
+    document.getElementById('banModal').classList.add('flex');
+}
+
+function closeBanModal() {
+    document.getElementById('banModal').classList.add('hidden');
+    document.getElementById('banModal').classList.remove('flex');
+    currentBanUserId = null;
+    document.getElementById('banReason').value = '';
+}
+
+async function submitBan() {
+    const reason = document.getElementById('banReason').value;
+    const duration = document.getElementById('banDuration').value;
+
+    if (!reason) {
+        alert('Введите причину блокировки');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/users/${currentBanUserId}/ban`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                reason: reason,
+                duration_days: duration ? parseInt(duration) : null
+            })
+        });
+
+        if (response.ok) {
+            closeBanModal();
+            location.reload();
+        } else {
+            alert('Ошибка блокировки пользователя');
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+async function unbanUser(userId) {
+    if (!confirm('Вы уверены, что хотите разблокировать этого пользователя?')) return;
+
+    try {
+        const response = await fetch(`/api/users/${userId}/unban`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка разблокировки пользователя');
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+function viewUser(userId) {
+    alert('Просмотр пользователя ' + userId);
+}
+</script>
+{% endblock %}

@@ -1,7 +1,9 @@
 // lib/widgets/chat_list_item.dart
 
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/chat.dart';
+import '../utils/image_utils.dart';
 
 class ChatListItem extends StatelessWidget {
   final Chat chat;
@@ -10,38 +12,67 @@ class ChatListItem extends StatelessWidget {
   final String? typingUser;
 
   const ChatListItem({
-    Key? key,
+    super.key,
     required this.chat,
     required this.onTap,
     this.onLongPress,
     this.typingUser,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       onTap: onTap,
       onLongPress: onLongPress,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Stack(
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: Color(0xFF2B5CE6),
-            backgroundImage:
-                chat.avatarUrl != null && chat.avatarUrl!.isNotEmpty
-                    ? NetworkImage(chat.avatarUrl!)
-                    : null,
-            child: chat.avatarUrl == null || chat.avatarUrl!.isEmpty
-                ? Text(
+            backgroundColor: const Color(0xFF2B5CE6),
+            child: chat.avatarUrl != null && chat.avatarUrl!.isNotEmpty
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: ImageUtils.getAvatarUrl(chat.avatarUrl) ?? '',
+                      fit: BoxFit.cover,
+                      width: 56,
+                      height: 56,
+                      placeholder: (context, url) => Container(
+                        color: const Color(0xFF2B5CE6),
+                        child: Center(
+                          child: Text(
+                            chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: const Color(0xFF2B5CE6),
+                        child: Center(
+                          child: Text(
+                            chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : Text(
                     chat.name.isNotEmpty ? chat.name[0].toUpperCase() : '?',
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
-                  )
-                : null,
+                  ),
           ),
           if (chat.isOnline)
             Positioned(
@@ -67,7 +98,7 @@ class ChatListItem extends StatelessWidget {
           Expanded(
             child: Text(
               chat.name,
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 16,
               ),
@@ -75,17 +106,8 @@ class ChatListItem extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (chat.isPinned)
-            Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: Icon(
-                Icons.push_pin,
-                size: 16,
-                color: Colors.grey,
-              ),
-            ),
           if (chat.isMuted)
-            Padding(
+            const Padding(
               padding: EdgeInsets.only(left: 4),
               child: Icon(
                 Icons.volume_off,
@@ -98,7 +120,7 @@ class ChatListItem extends StatelessWidget {
       subtitle: typingUser != null
           ? Text(
               '$typingUser печатает...',
-              style: TextStyle(
+              style: const TextStyle(
                 color: Color(0xFF2B5CE6),
                 fontSize: 14,
                 fontStyle: FontStyle.italic,
@@ -121,17 +143,17 @@ class ChatListItem extends StatelessWidget {
           // Кружок с количеством непрочитанных слева
           if (chat.unreadCount > 0)
             Container(
-              margin: EdgeInsets.only(right: 8),
+              margin: const EdgeInsets.only(right: 8),
               width: 22,
               height: 22,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Color(0xFF2B5CE6),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
                   chat.unreadCount > 9 ? '9+' : chat.unreadCount.toString(),
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,

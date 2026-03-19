@@ -4,7 +4,7 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="SecureWave Secure Messenger">
+  <meta name="description" content="SecureWave - Secure Communication App">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -14,6 +14,8 @@
   <title>SecureWave</title>
   <link rel="manifest" href="manifest.json">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="format-detection" content="telephone=no">
   
   <style>
     body {
@@ -120,6 +122,10 @@
   <!-- Flutter loader -->
   <script src="flutter.js" defer></script>
   <script>
+    // ⭐⭐⭐ ВЕРСИОНИРОВАНИЕ: Принудительное обновление кэша
+    var APP_VERSION = 'v' + Date.now();
+    console.log('[HTML] App version:', APP_VERSION);
+    
     window.addEventListener('load', function(ev) {
       console.log('[HTML] Page loaded, starting Flutter...');
       
@@ -160,10 +166,38 @@
   <script>
     console.log('[HTML] Регистрация Service Worker...');
     
+    // ⭐⭐⭐ ВЕРСИОНИРОВАНИЕ: Принудительное обновление кэша
+    var APP_VERSION = 'v' + Date.now();
+    console.log('[HTML] App version:', APP_VERSION);
+    
     if ('serviceWorker' in navigator) {
+      // ⭐⭐⭐ НОВОЕ: Очищаем все service workers перед регистрацией (для обновлений)
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister().then(function(success) {
+            if(success) {
+              console.log('[HTML] 🧹 Старый Service Worker удален для обновления');
+            }
+          });
+        }
+      });
+      
+      // ⭐⭐⭐ НОВОЕ: Очищаем кэш браузера для main.dart.js
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name).then(function(success) {
+              if (success) {
+                console.log('[HTML] 🧹 Кэш удален:', name);
+              }
+            });
+          }
+        });
+      }
+      
       // Ждем полной загрузки страницы
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        navigator.serviceWorker.register('/firebase-messaging-sw.js?v=' + APP_VERSION)
           .then((registration) => {
             console.log('✅ Service Worker зарегистрирован:', registration.scope);
             console.log('✅ Registration:', registration);
@@ -184,8 +218,19 @@
         // Слушаем обновления Service Worker
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           console.log('🔄 Service Worker контроллер изменился');
+          // ⭐⭐⭐ НОВОЕ: Перезагружаем страницу при обновлении SW
+          window.location.reload();
         });
       });
+      
+      // ⭐⭐⭐ КРИТИЧНО: Принудительная очистка кэша main.dart.js при загрузке
+      if ('caches' in window) {
+        window.addEventListener('load', () => {
+          fetch('/main.dart.js?v=' + APP_VERSION, { cache: 'no-store' })
+            .then(() => console.log('[HTML] ✅ main.dart.js загружен с no-cache'))
+            .catch((e) => console.error('[HTML] ❌ Ошибка загрузки main.dart.js:', e));
+        });
+      }
     } else {
       console.warn('⚠️ Service Worker не поддерживается в этом браузере');
     }

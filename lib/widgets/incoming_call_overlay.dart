@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/call.dart';
 import '../services/webrtc_service.dart';
+import '../utils/image_utils.dart';
 
 class IncomingCallOverlay extends StatefulWidget {
   final Call incomingCall;
@@ -11,11 +12,11 @@ class IncomingCallOverlay extends StatefulWidget {
   final VoidCallback onAccept;
 
   const IncomingCallOverlay({
-    Key? key,
+    super.key,
     required this.incomingCall,
     required this.onDismiss,
     required this.onAccept,
-  }) : super(key: key);
+  });
 
   @override
   _IncomingCallOverlayState createState() => _IncomingCallOverlayState();
@@ -31,17 +32,17 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
   void initState() {
     super.initState();
 
-    print('[IncomingCallOverlay] ========================================');
-    print('[IncomingCallOverlay] initState вызван');
-    print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
-    print(
+    // print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] initState вызван');
+    // print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
+    // print(
         '[IncomingCallOverlay] callerName: ${widget.incomingCall.callerName}');
-    print('[IncomingCallOverlay] callType: ${widget.incomingCall.callType}');
-    print('[IncomingCallOverlay] status: ${widget.incomingCall.status}');
-    print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] callType: ${widget.incomingCall.callType}');
+    // print('[IncomingCallOverlay] status: ${widget.incomingCall.status}');
+    // print('[IncomingCallOverlay] ========================================');
 
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
 
@@ -53,31 +54,31 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     _animationController.forward();
 
     // Автоматически отклоняем звонок через 45 секунд
-    _timeoutTimer = Timer(Duration(seconds: 45), () {
+    _timeoutTimer = Timer(const Duration(seconds: 45), () {
       if (mounted) {
-        print('[IncomingCallOverlay] ⏰ Таймаут 45 секунд истек');
+        // print('[IncomingCallOverlay] ⏰ Таймаут 45 секунд истек');
         _declineCall();
       }
     });
 
-    print('[IncomingCallOverlay] ✅ Таймер установлен на 45 секунд');
+    // print('[IncomingCallOverlay] ✅ Таймер установлен на 45 секунд');
   }
 
   @override
   void dispose() {
-    print('[IncomingCallOverlay] ========================================');
-    print('[IncomingCallOverlay] dispose вызван');
-    print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] dispose вызван');
+    // print('[IncomingCallOverlay] ========================================');
     _timeoutTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
 
   void _acceptCall() async {
-    print('[IncomingCallOverlay] ========================================');
-    print('[IncomingCallOverlay] ✅ Принимаем звонок');
-    print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
-    print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] ✅ Принимаем звонок');
+    // print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
+    // print('[IncomingCallOverlay] ========================================');
 
     _timeoutTimer?.cancel();
 
@@ -87,14 +88,14 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
     // Вызываем callback для открытия CallScreen
     widget.onAccept();
 
-    print('[IncomingCallOverlay] ✅ answerCall вызван, callback выполнен');
+    // print('[IncomingCallOverlay] ✅ answerCall вызван, callback выполнен');
   }
 
   void _declineCall() {
-    print('[IncomingCallOverlay] ========================================');
-    print('[IncomingCallOverlay] ❌ Отклоняем звонок');
-    print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
-    print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] ========================================');
+    // print('[IncomingCallOverlay] ❌ Отклоняем звонок');
+    // print('[IncomingCallOverlay] callId: ${widget.incomingCall.id}');
+    // print('[IncomingCallOverlay] ========================================');
 
     _timeoutTimer?.cancel();
 
@@ -132,7 +133,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
               ),
               padding: EdgeInsets.all(isMobile ? 24 : 32),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
+                gradient: const LinearGradient(
                   colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -144,7 +145,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                 children: [
                   // Иконка типа звонка
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
                       shape: BoxShape.circle,
@@ -156,7 +157,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                     ),
                   ),
 
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
                   // Текст входящего звонка
                   Text(
@@ -169,7 +170,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                     textAlign: TextAlign.center,
                   ),
 
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // Информация о звонящем
                   Row(
@@ -180,7 +181,8 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                         backgroundColor: Colors.white.withOpacity(0.2),
                         backgroundImage: widget.incomingCall.callerAvatar !=
                                 null
-                            ? NetworkImage(widget.incomingCall.callerAvatar!)
+                            ? NetworkImage(ImageUtils.getAvatarUrl(
+                                widget.incomingCall.callerAvatar) ?? '')
                             : null,
                         child: widget.incomingCall.callerAvatar == null
                             ? Icon(
@@ -190,7 +192,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                               )
                             : null,
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Flexible(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +207,7 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                               overflow: TextOverflow.ellipsis,
                               maxLines: 2,
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 Icon(
@@ -213,12 +215,12 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                                   color: Colors.white70,
                                   size: 16,
                                 ),
-                                SizedBox(width: 6),
+                                const SizedBox(width: 6),
                                 Text(
                                   isVideoCall
                                       ? 'Видеозвонок'
                                       : 'Голосовой звонок',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 14,
                                   ),
@@ -255,8 +257,8 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                               ),
                             ),
                           ),
-                          SizedBox(height: 8),
-                          Text(
+                          const SizedBox(height: 8),
+                          const Text(
                             'Отклонить',
                             style: TextStyle(
                               color: Colors.white,
@@ -285,8 +287,8 @@ class _IncomingCallOverlayState extends State<IncomingCallOverlay>
                               ),
                             ),
                           ),
-                          SizedBox(height: 8),
-                          Text(
+                          const SizedBox(height: 8),
+                          const Text(
                             'Принять',
                             style: TextStyle(
                               color: Colors.white,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class TypingIndicator extends StatefulWidget {
+  const TypingIndicator({super.key});
+
   @override
   _TypingIndicatorState createState() => _TypingIndicatorState();
 }
@@ -15,7 +17,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
     super.initState();
 
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
@@ -49,7 +51,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       height: 20,
       width: 50,
       child: Row(
@@ -79,10 +81,12 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
 // Альтернативный простой индикатор без анимации
 class SimpleTypingIndicator extends StatelessWidget {
+  const SimpleTypingIndicator({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey[200],
         borderRadius: BorderRadius.circular(15),
@@ -91,9 +95,9 @@ class SimpleTypingIndicator extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildDot(),
-          SizedBox(width: 3),
+          const SizedBox(width: 3),
           _buildDot(),
-          SizedBox(width: 3),
+          const SizedBox(width: 3),
           _buildDot(),
         ],
       ),

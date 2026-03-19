@@ -1,11 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- android/app/src/main/res/values/styles.xml -->
 <resources>
-    <!-- Base application theme -->
+    
+    <!-- Существующие темы Flutter -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
+
+    <!-- ⭐ Тема для CallActivity -->
+    <style name="CallActivityTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Темный фон -->
+        <item name="android:windowBackground">#1E1E1E</item>
+        
+        <!-- ⚠️ windowShowWhenLocked и turnScreenOn устанавливаются ТОЛЬКО в коде! -->
+        <!-- НЕ используем их здесь - они вызовут ошибку компиляции -->
+        
+        <!-- ⭐⭐⭐ КРИТИЧНО: Полноэкранный режим -->
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        
+        <!-- ⭐⭐⭐ КРИТИЧНО: Убираем отступы для системных UI элементов -->
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        <item name="android:fitsSystemWindows">false</item>
+        
+        <!-- Убираем тени и анимации для быстрого отображения -->
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
 </resources>

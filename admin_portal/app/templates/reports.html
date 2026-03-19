@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block title %}Жалобы - SecureWave Админ{% endblock %}
+
+{% block content %}
+<div class="p-8">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Жалобы на контент</h1>
+            <p class="text-gray-500">Просмотр и модерация жалоб пользователей</p>
+        </div>
+        <div class="flex gap-2">
+            <select id="statusFilter" onchange="filterReports()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="">Все статусы</option>
+                <option value="pending">Ожидающие</option>
+                <option value="reviewed">На рассмотрении</option>
+                <option value="resolved">Решённые</option>
+                <option value="dismissed">Отклонённые</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Reports Table -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Жалоба</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Отправитель</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Нарушитель</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Контент</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for report in reports %}
+                <tr class="hover:bg-gray-50 report-row" data-status="{{ report.status }}">
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-medium text-gray-900">#{{ report.id }}</div>
+                        <div class="text-sm text-gray-500">
+                            {% if report.report_type == 'spam' %}Спам
+                            {% elif report.report_type == 'harassment' %}Оскорбления
+                            {% elif report.report_type == 'inappropriate' %}Непристойный контент
+                            {% elif report.report_type == 'violence' %}Насилие
+                            {% elif report.report_type == 'hate_speech' %}Разжигание ненависти
+                            {% elif report.report_type == 'other' %}Другое
+                            {% else %}{{ report.report_type }}{% endif %}
+                        </div>
+                        <div class="text-xs text-gray-400">{{ report.created_at }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900">{{ report.reporter_username }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900">{{ report.reported_username }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm text-gray-600 max-w-xs truncate">
+                            {% if report.message_content %}
+                            {{ report.message_content[:100] }}{% if report.message_content|length > 100 %}...{% endif %}
+                            {% elif report.message_media_url %}
+                            <span class="text-blue-600">
+                                {% if report.message_type == 'image' %}📷 Картинка
+                                {% elif report.message_type == 'video' %}🎥 Видео
+                                {% elif report.message_type == 'audio' %}🎵 Аудио
+                                {% elif report.message_type == 'file' %}📎 Файл
+                                {% else %}📎 Медиа файл{% endif %}
+                            </span>
+                            {% else %}
+                            <span class="text-gray-400 italic">Нет сообщения</span>
+                            {% endif %}
+                        </div>
+                        {% if report.description %}
+                        <div class="text-xs text-gray-400 mt-1">{{ report.description[:50] }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs rounded-full
+                            {% if report.status == 'pending' %}bg-yellow-100 text-yellow-800
+                            {% elif report.status == 'reviewed' %}bg-blue-100 text-blue-800
+                            {% elif report.status == 'resolved' %}bg-green-100 text-green-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {% if report.status == 'pending' %}Ожидает
+                            {% elif report.status == 'reviewed' %}На рассмотрении
+                            {% elif report.status == 'resolved' %}Решено
+                            {% else %}Отклонено{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex gap-2">
+                            <button onclick="openReportModal({{ report.id }}, '{{ report.reported_username }}', '{{ report.message_content|e if report.message_content else '' }}', '{{ report.message_media_url|e if report.message_media_url else '' }}', '{{ report.message_type|e if report.message_type else '' }}')"
+                                class="text-purple-600 hover:text-purple-800" title="Просмотр">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                            </button>
+                            {% if report.status == 'pending' %}
+                            <button onclick="resolveReport({{ report.id }}, 'resolved')"
+                                class="text-green-600 hover:text-green-800" title="Решить">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </button>
+                            <button onclick="resolveReport({{ report.id }}, 'dismissed')"
+                                class="text-gray-600 hover:text-gray-800" title="Отклонить">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                        Жалобы не найдены
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div id="reportModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Просмотр жалобы #<span id="modalReportId"></span></h3>
+            <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Нарушитель</label>
+            <p id="modalReportedUser" class="text-gray-900"></p>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Контент</label>
+            <p id="modalContent" class="text-gray-900 bg-gray-50 p-3 rounded-lg"></p>
+            <div id="modalMedia" class="mt-2"></div>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Заметки модератора</label>
+            <textarea id="modalNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" placeholder="Введите заметки..."></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Действие</label>
+            <select id="modalAction" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                <option value="">Без действия</option>
+                <option value="delete_message">Удалить сообщение</option>
+                <option value="warn_user">Предупредить пользователя</option>
+                <option value="ban_user">Заблокировать пользователя</option>
+            </select>
+        </div>
+
+        <div class="flex gap-3">
+            <button onclick="submitReportAction('resolved')" class="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                Решить
+            </button>
+            <button onclick="submitReportAction('dismissed')" class="flex-1 bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700">
+                Отклонить
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentReportId = null;
+
+function filterReports() {
+    const status = document.getElementById('statusFilter').value;
+    const rows = document.querySelectorAll('.report-row');
+
+    rows.forEach(row => {
+        if (!status || row.dataset.status === status) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function openReportModal(id, user, content, mediaUrl, mediaType) {
+    currentReportId = id;
+    document.getElementById('modalReportId').textContent = id;
+    document.getElementById('modalReportedUser').textContent = user;
+    document.getElementById('modalContent').textContent = content || 'Нет текстового контента';
+
+    // Отображение медиа файлов
+    const mediaContainer = document.getElementById('modalMedia');
+    mediaContainer.innerHTML = '';
+
+    if (mediaUrl && mediaUrl.trim()) {
+        if (mediaType === 'image') {
+            mediaContainer.innerHTML = `
+                <a href="${mediaUrl}" target="_blank" class="inline-block">
+                    <img src="${mediaUrl}" alt="Медиа контент" class="max-w-full max-h-96 rounded-lg shadow-md hover:opacity-90 transition-opacity cursor-pointer">
+                </a>
+                <p class="text-xs text-gray-500 mt-2">Нажмите на картинку для полного размера</p>
+            `;
+        } else if (mediaType === 'video') {
+            mediaContainer.innerHTML = `
+                <video controls class="max-w-full max-h-96 rounded-lg shadow-md">
+                    <source src="${mediaUrl}" type="video/mp4">
+                    Ваш браузер не поддерживает видео.
+                </video>
+            `;
+        } else if (mediaType === 'audio') {
+            mediaContainer.innerHTML = `
+                <audio controls class="w-full">
+                    <source src="${mediaUrl}" type="audio/mpeg">
+                    Ваш браузер не поддерживает аудио.
+                </audio>
+            `;
+        } else {
+            mediaContainer.innerHTML = `
+                <a href="${mediaUrl}" target="_blank" class="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                    </svg>
+                    Открыть файл
+                </a>
+            `;
+        }
+    }
+
+    document.getElementById('reportModal').classList.remove('hidden');
+    document.getElementById('reportModal').classList.add('flex');
+}
+
+function closeReportModal() {
+    document.getElementById('reportModal').classList.add('hidden');
+    document.getElementById('reportModal').classList.remove('flex');
+    currentReportId = null;
+}
+
+async function resolveReport(id, status) {
+    try {
+        const response = await fetch(`/api/reports/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status: status})
+        });
+
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('Ошибка обновления жалобы');
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+async function submitReportAction(status) {
+    const notes = document.getElementById('modalNotes').value;
+    const action = document.getElementById('modalAction').value;
+
+    try {
+        const response = await fetch(`/api/reports/${currentReportId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                status: status,
+                moderator_notes: notes,
+                action: action || null
+            })
+        });
+
+        if (response.ok) {
+            closeReportModal();
+            location.reload();
+        } else {
+            alert('Ошибка обновления жалобы');
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+</script>
+{% endblock %}

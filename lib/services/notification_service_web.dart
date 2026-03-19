@@ -28,7 +28,7 @@ class NotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    print('[NotificationService] Инициализация...');
+    // print('[NotificationService] Инициализация...');
 
     // Инициализация Firebase
     if (!kIsWeb) {
@@ -48,11 +48,11 @@ class NotificationService {
     // Инициализация Title Notifications для веб
     if (kIsWeb) {
       TitleNotificationService.instance.initialize();
-      print('[NotificationService] ✅ Title notifications инициализирован');
+      // print('[NotificationService] ✅ Title notifications инициализирован');
     }
 
     _initialized = true;
-    print('[NotificationService] ✅ Инициализация завершена');
+    // print('[NotificationService] ✅ Инициализация завершена');
   }
 
   // Инициализация FCM для мобильных платформ
@@ -68,12 +68,12 @@ class NotificationService {
       sound: true,
     );
 
-    print('[FCM] Статус разрешений: ${settings.authorizationStatus}');
+    // print('[FCM] Статус разрешений: ${settings.authorizationStatus}');
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       // Получаем FCM токен
       _fcmToken = await _fcm.getToken();
-      print('[FCM] Токен получен: $_fcmToken');
+      // print('[FCM] Токен получен: $_fcmToken');
 
       // Отправляем токен на сервер
       if (_fcmToken != null) {
@@ -82,7 +82,7 @@ class NotificationService {
 
       // Слушаем обновления токена
       _fcm.onTokenRefresh.listen((newToken) {
-        print('[FCM] Токен обновлен: $newToken');
+        // print('[FCM] Токен обновлен: $newToken');
         _fcmToken = newToken;
         _sendTokenToServer(newToken);
       });
@@ -116,14 +116,14 @@ class NotificationService {
 
         if (token != null) {
           _fcmToken = token;
-          print('[Web FCM] Токен получен: $token');
+          // print('[Web FCM] Токен получен: $token');
           await _sendTokenToServer(token);
         }
 
         // Слушаем сообщения в web
         FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
       } catch (e) {
-        print('[Web FCM] Ошибка: $e');
+        // print('[Web FCM] Ошибка: $e');
       }
     }
   }
@@ -188,19 +188,20 @@ class NotificationService {
   // Отправка токена на сервер
   Future<void> _sendTokenToServer(String token) async {
     try {
+      final platformName = kIsWeb ? 'web' : Platform.operatingSystem;
       await ApiService.instance.post('/notifications/register', data: {
         'token': token,
-        'platform': kIsWeb ? 'web' : Platform.operatingSystem,
+        'platform': platformName,
       });
-      print('[NotificationService] ✅ Токен отправлен на сервер');
+      // print('[NotificationService] ✅ Токен отправлен на сервер');
     } catch (e) {
-      print('[NotificationService] ❌ Ошибка отправки токена: $e');
+      // print('[NotificationService] ❌ Ошибка отправки токена: $e');
     }
   }
 
   // Обработка foreground сообщений
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    print('[FCM Foreground] Получено: ${message.data}');
+    // print('[FCM Foreground] Получено: ${message.data}');
 
     final data = message.data;
     final type = data['type'];
@@ -211,7 +212,7 @@ class NotificationService {
         final messagePreview = '${data['senderName']}: ${data['messageText']}';
         TitleNotificationService.instance.incrementUnread(
             message: messagePreview.length > 50
-                ? messagePreview.substring(0, 50) + '...'
+                ? '${messagePreview.substring(0, 50)}...'
                 : messagePreview);
       }
 
@@ -240,21 +241,21 @@ class NotificationService {
 
   // ❌❌❌ ОТКЛЮЧЕНО: Обработка background сообщений
   // static Future<void> handleBackgroundMessage(RemoteMessage message) async {
-  //   print('[FCM Background] Обработка: ${message.data}');
+  //   // print('[FCM Background] Обработка: ${message.data}');
   // }
 
   // Когда пользователь открывает уведомление
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
-    print('[FCM Opened] Уведомление открыто: ${message.data}');
+    // print('[FCM Opened] Уведомление открыто: ${message.data}');
 
     final data = message.data;
     final type = data['type'];
 
     // Навигация в зависимости от типа
     if (type == 'new_message') {
-      print('[FCM Opened] Открытие чата: ${data['chatId']}');
+      // print('[FCM Opened] Открытие чата: ${data['chatId']}');
     } else if (type == 'incoming_call') {
-      print('[FCM Opened] Открытие звонка: ${data['callId']}');
+      // print('[FCM Opened] Открытие звонка: ${data['callId']}');
     }
   }
 
@@ -320,7 +321,7 @@ class NotificationService {
   }) async {
     final isVideo = callType == 'video';
 
-    final androidDetails = AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       _callChannelId,
       _callChannelName,
       channelDescription: 'Уведомления о входящих звонках',
@@ -403,7 +404,7 @@ class NotificationService {
 
   // Обработка нажатия на local notification
   void _onLocalNotificationTap(NotificationResponse response) async {
-    print('[LocalNotification] Нажатие: ${response.payload}');
+    // print('[LocalNotification] Нажатие: ${response.payload}');
 
     if (response.payload != null) {
       final parts = response.payload!.split(':');
@@ -413,25 +414,25 @@ class NotificationService {
 
         if (type == 'call') {
           if (response.actionId == 'accept') {
-            print('[Action] Принять звонок: $id');
+            // print('[Action] Принять звонок: $id');
           } else if (response.actionId == 'decline') {
-            print('[Action] Отклонить звонок: $id');
+            // print('[Action] Отклонить звонок: $id');
           } else {
-            print('[Action] Открыть экран звонка: $id');
+            // print('[Action] Открыть экран звонка: $id');
           }
         } else if (type == 'message') {
           if (response.actionId == 'reply') {
-            print('[Action] Ответить в чат: $id');
-            print('[Action] Текст: ${response.input}');
+            // print('[Action] Ответить в чат: $id');
+            // print('[Action] Текст: ${response.input}');
           } else if (response.actionId == 'mark_read') {
-            print('[Action] Пометить прочитанным: $id');
+            // print('[Action] Пометить прочитанным: $id');
 
             // Уменьшаем счетчик непрочитанных
             if (kIsWeb) {
               TitleNotificationService.instance.decrementUnread();
             }
           } else {
-            print('[Action] Открыть чат: $id');
+            // print('[Action] Открыть чат: $id');
           }
         }
       }

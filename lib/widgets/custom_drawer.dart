@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
+import '../screens/blocked_users_screen.dart';
 
 class CustomDrawer extends StatelessWidget {
+  const CustomDrawer({super.key});
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
@@ -12,7 +15,7 @@ class CustomDrawer extends StatelessWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
+          const DrawerHeader(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
@@ -42,25 +45,36 @@ class CustomDrawer extends StatelessWidget {
             ),
           ),
           ListTile(
-            leading: Icon(Icons.person),
-            title: Text('Profile'),
+            leading: const Icon(Icons.person),
+            title: const Text('Profile'),
             onTap: () => Navigator.pop(context),
           ),
           ListTile(
-            leading: Icon(Icons.settings),
-            title: Text('Settings'),
+            leading: const Icon(Icons.settings),
+            title: const Text('Settings'),
             onTap: () => Navigator.pop(context),
           ),
+          ListTile(
+            leading: const Icon(Icons.block),
+            title: const Text('Заблокированные'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+              );
+            },
+          ),
           SwitchListTile(
-            secondary: Icon(Icons.dark_mode),
-            title: Text('Dark Mode'),
+            secondary: const Icon(Icons.dark_mode),
+            title: const Text('Dark Mode'),
             value: themeProvider.isDarkMode,
             onChanged: (value) => themeProvider.toggleTheme(),
           ),
-          Divider(),
+          const Divider(),
           ListTile(
-            leading: Icon(Icons.logout, color: Colors.red),
-            title: Text('Logout', style: TextStyle(color: Colors.red)),
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout', style: TextStyle(color: Colors.red)),
             onTap: () {
               context.read<AuthProvider>().logout();
               Navigator.pushReplacementNamed(context, '/login');

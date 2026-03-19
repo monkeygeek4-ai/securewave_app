@@ -43,19 +43,20 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCn418sni1BuB_spzJmwZStW8va4WiI1NM',
-    appId: '1:394959992893:android:63b18c66d1654eda661254',
+    appId: '1:394959992893:android:f57406e71fb16e81661254',
     messagingSenderId: '394959992893',
     projectId: 'wave-messenger-56985',
     storageBucket: 'wave-messenger-56985.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAlBnaWejApWZxll_oNko4s5bueSSbf9mg',
-    appId: '1:394959992893:ios:5254ec3225b8e097661254',
-    messagingSenderId: '394959992893',
-    projectId: 'wave-messenger-56985',
-    storageBucket: 'wave-messenger-56985.firebasestorage.app',
-    iosBundleId: 'com.example.securewaveApp',
+    // Обновлено под проект wave-app-6d89e с новым Bundle ID com.secwave.app
+    apiKey: 'AIzaSyAMGJ4Bp5HjY0CXL-NFXio34egPRcgBils',
+    appId: '1:203785392248:ios:f4ab46d674ecd305c41d8d',
+    messagingSenderId: '203785392248',
+    projectId: 'wave-app-6d89e',
+    storageBucket: 'wave-app-6d89e.firebasestorage.app',
+    iosBundleId: 'com.secwave.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

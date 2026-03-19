@@ -8,6 +8,8 @@ import 'home_screen.dart';
 import 'auth/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
   @override
   _SplashScreenState createState() => _SplashScreenState();
 }
@@ -28,11 +30,11 @@ class _SplashScreenState extends State<SplashScreen> {
     if (_isInitializing) return;
     _isInitializing = true;
 
-    print('[Splash] Начало инициализации приложения');
+    // print('[Splash] Начало инициализации приложения');
 
     try {
       // Минимальная задержка для показа splash
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 1));
 
       if (!mounted) return;
 
@@ -47,26 +49,26 @@ class _SplashScreenState extends State<SplashScreen> {
       Widget nextScreen;
 
       if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-        print(
+        // print(
             '[Splash] Пользователь авторизован: ${authProvider.currentUser!.username}');
 
         // Устанавливаем userId
         chatProvider.setCurrentUserId(authProvider.currentUser!.id);
 
         // Даем время на установку WebSocket соединения
-        await Future.delayed(Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 500));
 
         // Загружаем чаты
         try {
           await chatProvider.loadChats();
-          print('[Splash] Чаты загружены');
+          // print('[Splash] Чаты загружены');
         } catch (e) {
-          print('[Splash] Ошибка загрузки чатов: $e');
+          // print('[Splash] Ошибка загрузки чатов: $e');
         }
 
         nextScreen = HomeScreen();
       } else {
-        print('[Splash] Пользователь не авторизован');
+        // print('[Splash] Пользователь не авторизован');
         nextScreen = LoginScreen();
       }
 
@@ -76,7 +78,7 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     } catch (e) {
-      print('[Splash] Ошибка инициализации: $e');
+      // print('[Splash] Ошибка инициализации: $e');
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -90,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -100,7 +102,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ],
           ),
         ),
-        child: Center(
+        child: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

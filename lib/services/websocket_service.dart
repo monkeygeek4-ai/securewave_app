@@ -16,7 +16,7 @@ class WebSocketService {
     // final wsUrl = Uri.parse('ws://localhost:8080/ws');
 
     // For now, skip WebSocket connection
-    print('WebSocket connection would be established for chat: $chatId');
+    // print('WebSocket connection would be established for chat: $chatId');
   }
 
   void sendMessage(Map<String, dynamic> message) {

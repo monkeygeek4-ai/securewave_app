@@ -7,10 +7,13 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
+import '../../utils/image_utils.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'delete_account_screen.dart';
+import '../blocked_users_screen.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
-  const ProfileSettingsScreen({Key? key}) : super(key: key);
+  const ProfileSettingsScreen({super.key});
 
   @override
   _ProfileSettingsScreenState createState() => _ProfileSettingsScreenState();
@@ -98,7 +101,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('Аватар обновлен'),
               backgroundColor: Colors.green,
             ),
@@ -148,7 +151,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('Профиль обновлен'),
               backgroundColor: Colors.green,
             ),
@@ -259,6 +262,8 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                         _buildContactSection(),
                         const SizedBox(height: 40),
                         _buildSaveButton(),
+                        const SizedBox(height: 40),
+                        _buildDeleteAccountButton(),
                         const SizedBox(height: 20),
                       ],
                     ),
@@ -282,7 +287,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 radius: 60,
                 backgroundColor: Colors.grey[300],
                 backgroundImage: _avatarUrl != null && _avatarUrl!.isNotEmpty
-                    ? NetworkImage(_avatarUrl!)
+                    ? NetworkImage(ImageUtils.getAvatarUrl(_avatarUrl) ?? '')
                     : null,
                 child: _avatarUrl == null || _avatarUrl!.isEmpty
                     ? const Icon(Icons.person, size: 60, color: Colors.grey)
@@ -291,7 +296,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               if (_isLoading)
                 Positioned.fill(
                   child: Container(
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.black54,
                       shape: BoxShape.circle,
                     ),
@@ -530,6 +535,66 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 style: TextStyle(fontSize: 16, color: Colors.white),
               ),
       ),
+    );
+  }
+
+  Widget _buildDeleteAccountButton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(),
+        const SizedBox(height: 10),
+
+        // Заблокированные пользователи
+        ListTile(
+          leading: const Icon(Icons.block, color: Colors.orange),
+          title: const Text('Заблокированные'),
+          subtitle: const Text('Управление заблокированными пользователями'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const BlockedUsersScreen(),
+              ),
+            );
+          },
+        ),
+
+        const SizedBox(height: 20),
+        Text(
+          'Опасная зона',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.red[700],
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DeleteAccountScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.delete_forever, color: Colors.red),
+            label: const Text(
+              'Удалить аккаунт',
+              style: TextStyle(color: Colors.red, fontSize: 16),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -6,7 +6,7 @@ void setupWebVisibilityListener({
   Function()? onBlur,
   Function(bool)? onVisibilityChange,
 }) {
-  print('[WebVisibility] Mobile платформа - Web visibility не используется');
+  // print('[WebVisibility] Mobile платформа - Web visibility не используется');
   // На мобильных платформах используем WidgetsBindingObserver
   // Эти события обрабатываются на уровне StatefulWidget
 }

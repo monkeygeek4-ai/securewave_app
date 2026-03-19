@@ -31,16 +31,15 @@ class Chat {
 
   // ДОБАВЛЕНО: Метод для получения ID другого участника (не текущего пользователя)
   String? getOtherParticipantId(String currentUserId) {
-    print('[Chat.getOtherParticipantId] Текущий пользователь: $currentUserId');
-    print('[Chat.getOtherParticipantId] Участники: $participants');
-    print('[Chat.getOtherParticipantId] receiverId: $receiverId');
+    // print('[Chat.getOtherParticipantId] Текущий пользователь: $currentUserId');
+    // print('[Chat.getOtherParticipantId] Участники: $participants');
+    // print('[Chat.getOtherParticipantId] receiverId: $receiverId');
 
     // Сначала проверяем поле receiverId (если есть)
     if (receiverId != null &&
         receiverId!.isNotEmpty &&
         receiverId != currentUserId) {
-      print(
-          '[Chat.getOtherParticipantId] ✅ Используем receiverId: $receiverId');
+      // print(         // '[Chat.getOtherParticipantId] ✅ Используем receiverId: $receiverId');
       return receiverId;
     }
 
@@ -50,19 +49,17 @@ class Chat {
         final cleanParticipantId = participantId.trim();
         final cleanCurrentUserId = currentUserId.trim();
 
-        print(
-            '[Chat.getOtherParticipantId] Проверяем участника: "$cleanParticipantId" != "$cleanCurrentUserId"');
+        // print(           // '[Chat.getOtherParticipantId] Проверяем участника: "$cleanParticipantId" != "$cleanCurrentUserId"');
 
         if (cleanParticipantId.isNotEmpty &&
             cleanParticipantId != cleanCurrentUserId) {
-          print(
-              '[Chat.getOtherParticipantId] ✅ Найден другой участник: $cleanParticipantId');
+          // print(             // '[Chat.getOtherParticipantId] ✅ Найден другой участник: $cleanParticipantId');
           return cleanParticipantId;
         }
       }
     }
 
-    print('[Chat.getOtherParticipantId] ❌ Другой участник не найден');
+    // print('[Chat.getOtherParticipantId] ❌ Другой участник не найден');
     return null;
   }
 
