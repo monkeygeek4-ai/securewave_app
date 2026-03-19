@@ -163,7 +163,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(authProvider.errorMessage ?? 'Registration failed'),
+            content: Text(authProvider.errorMessage ?? 'Ошибка регистрации'),
             backgroundColor: Colors.red,
           ),
         );

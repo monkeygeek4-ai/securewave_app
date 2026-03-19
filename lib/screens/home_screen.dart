@@ -522,10 +522,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _navItem(0, Icons.chat_bubble_rounded, 'Chats'),
-                  _navItem(1, Icons.call_rounded, 'Calls'),
-                  _navItem(2, Icons.contacts_rounded, 'Contacts'),
-                  _navItem(3, Icons.settings_rounded, 'Settings'),
+                  _navItem(0, Icons.chat_bubble_rounded, 'Чаты'),
+                  _navItem(1, Icons.call_rounded, 'Звонки'),
+                  _navItem(2, Icons.contacts_rounded, 'Контакты'),
+                  _navItem(3, Icons.settings_rounded, 'Настройки'),
                 ],
               ),
             ),
@@ -631,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onChanged: _searchChats,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: 'Search conversations',
+            hintText: 'Поиск разговоров',
             hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
             prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withOpacity(0.5)),
             suffixIcon: _isSearching
@@ -684,16 +684,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: _glass(
-        radius: BorderRadius.circular(20),
-        opacity: isSelected ? 0.22 : 0.1,
-        gradient: isSelected
-            ? LinearGradient(colors: [
-                _kPurple.withOpacity(0.35),
-                _kIndigo.withOpacity(0.2),
-              ])
-            : null,
-        child: InkWell(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: isSelected
+                ? LinearGradient(colors: [
+                    _kPurple.withOpacity(0.35),
+                    _kIndigo.withOpacity(0.2),
+                  ])
+                : LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Colors.white.withOpacity(0.10),
+                      Colors.white.withOpacity(0.05),
+                    ],
+                  ),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.15),
+              width: 1,
+            ),
+          ),
+          child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
             if (isTablet) {
@@ -829,6 +844,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -195,8 +195,8 @@ class FCMService {
     try {
       const callsChannel = AndroidNotificationChannel(
         'calls_channel',
-        'Incoming Calls',
-        description: 'Full-screen notifications for incoming calls',
+        'Входящие звонки',
+        description: 'Уведомления на весь экран для входящих звонков',
         importance: Importance.max,
         playSound: true,
         enableVibration: true,
