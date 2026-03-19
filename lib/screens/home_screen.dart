@@ -44,6 +44,7 @@ Widget _glass({
   Gradient? gradient,
 }) {
   return ClipRRect(
+    clipBehavior: Clip.antiAliasWithSaveLayer,
     borderRadius: radius ?? BorderRadius.circular(16),
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
